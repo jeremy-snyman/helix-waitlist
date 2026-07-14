@@ -12,7 +12,7 @@ British English. No em dashes.
 
 ## 1. Shape of the system
 
-One static HTML page, one zero-dependency Node process, one data directory. No build step, no framework, no database service.
+One static HTML page, one Node process, one data directory. No build step, no framework, no database service. One dependency (`@google/genai`), loaded lazily and only used to mint Gemini Live ephemeral tokens; every other line is stdlib.
 
 ```
 helix-website/
@@ -91,10 +91,8 @@ A `functionCall` part becomes `action`; accompanying text becomes `reply` (canne
 
 ## 5. Voice (Gemini Live)
 
-_Design agreed; implementation lands in the voice step. Verify current model names and the auth_tokens REST shape against live Google docs before trusting this section._
-
-- **Mint** (`POST /api/voice/token`): server calls `v1alpha auth_tokens` with `uses: 1`, `expireTime` now+10 min, `newSessionExpireTime` now+2 min, and `liveConnectConstraints` locking the model (`GEMINI_LIVE_MODEL`), response modality AUDIO, temperature 0.3, the context pack as system instruction (spoken-register suffix), the same `show_signup_form` tool, and input/output transcription. The browser can therefore only hold the conversation we configured: the API key never leaves the server and the token dies server-side even if the client misbehaves. Returns `{token, model}`; 503 `{degrade: 'webspeech'}` without a key.
-- **Client**: mic button toggles a session. On first use the page dynamically imports a pinned `@google/genai` from jsdelivr (no build step; costs nothing unless voice is used; CDN failure drops a ladder rung). Audio in: `getUserMedia` mono with echo cancellation -> 16 kHz `AudioContext` -> inline AudioWorklet (Blob URL) -> Float32 to Int16 PCM -> base64 -> `sendRealtimeInput`. Audio out: 24 kHz PCM chunks scheduled sequentially against a play cursor; `interrupted` (barge-in) stops scheduled sources. Server VAD owns turn-taking.
+- **Mint** (`POST /api/voice/token`): the server uses `@google/genai` (`ai.authTokens.create`, apiVersion `v1alpha` — the wire format is an undocumented converter, so the SDK is the honest path) with `uses: 1`, `expireTime` now+10 min, `newSessionExpireTime` now+2 min, and `liveConnectConstraints` locking the model (`GEMINI_LIVE_MODEL`, default `gemini-3.1-flash-live-preview`), response modality AUDIO, temperature 0.3, the context pack as system instruction (spoken-register suffix), the same `show_signup_form` tool, and input/output transcription. The browser can therefore only hold the conversation we configured: the API key never leaves the server and the token dies server-side even if the client misbehaves. Returns `{token, model}` where `token` is the auth token `name` the client uses as its apiKey; 503 `{degrade: 'webspeech'}` without a key or on mint failure.
+- **Client**: mic button toggles a session. On first use the page dynamically imports `@google/genai@2.11.0` from jsdelivr (pinned, matching package.json; no build step; costs nothing unless voice is used; CDN failure drops a ladder rung), then `ai.live.connect({model, config: {responseModalities: ['AUDIO']}})` with the ephemeral token as apiKey. Audio in: `getUserMedia` mono with echo cancellation -> 16 kHz `AudioContext` -> inline AudioWorklet (Blob URL) -> Float32 to Int16 PCM -> base64 -> `sendRealtimeInput`. Audio out: 24 kHz PCM chunks scheduled sequentially against a play cursor; `interrupted` (barge-in) stops scheduled sources. Server VAD owns turn-taking.
 - **Transcripts**: input/output transcription events accumulate into the same chat bubbles as text conversation; finalised on `turnComplete`.
 - **Tool call over voice**: `toolCall.functionCalls` -> the shared `showMiniForm(args)` -> `sendToolResponse` acknowledging the form is shown and awaiting a human click.
 - **Lifecycle**: click to start (mint -> connect -> recording UI), click again or any error to stop (close session, stop tracks, close audio contexts). Client hard stop at 5 minutes with a chat notice; the 10-minute token expiry is the server-side backstop; `goAway` handled as a clean stop.

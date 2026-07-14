@@ -396,7 +396,14 @@
 var FORM_ENDPOINT="/api/waitlist";  /* Own API for waiting-list JSON POSTs. Empty = demo mode. */
 var AGENT_ENDPOINT="/api/agent";    /* Live agent API: POST {message, history} -> {reply, action?}. Scripted brain is the fallback. */
 var LIVE={agent:false,voice:false}; /* set from /api/health at load; picks the ladder rungs */
-fetch('/api/health').then(function(r){return r.json();}).then(function(d){LIVE.agent=!!d.agent;LIVE.voice=!!d.voice;}).catch(function(){});
+fetch('/api/health').then(function(r){return r.json();}).then(function(d){
+  LIVE.agent=!!d.agent; LIVE.voice=!!d.voice;
+  if(LIVE.voice)document.getElementById('mic').style.display='';
+  var note=document.querySelector('.agent-note');
+  if(note)note.textContent=LIVE.agent
+    ?'Live agent. If it ever goes quiet, a scripted stand-in takes over.'
+    :'Demo brain answering just now; the live agent arrives with the backend key.';
+}).catch(function(){});
 
 /* ---- riseField: drifting dots, density rising to the right ---- */
 (function(){
@@ -670,23 +677,138 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     c.addEventListener('click',function(){ask(c.textContent);});
   });
 
-  /* voice: mic in, spoken replies when toggled on */
+  /* ---- voice ladder: Gemini Live -> Web Speech -> hidden mic ---- */
   var mic=document.getElementById('mic'), toggle=document.getElementById('voice-toggle');
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(SR){
-    var rec=new SR(); rec.lang='en-GB'; rec.interimResults=false;
-    var listening=false;
-    mic.addEventListener('click',function(){
-      if(listening){rec.stop();return;}
-      listening=true; mic.classList.add('rec'); rec.start();
+  var GENAI_CDN='https://cdn.jsdelivr.net/npm/@google/genai@2.11.0/+esm'; /* pinned; keep in step with package.json */
+  var WORKLET_SRC="class P extends AudioWorkletProcessor{process(inputs){var ch=inputs[0][0];if(ch)this.port.postMessage(ch.slice(0));return true;}}registerProcessor('pcm-forwarder',P);";
+  var live={session:null,ctxIn:null,ctxOut:null,stream:null,sources:[],cursor:0,timer:null,userBub:null,agentBub:null};
+
+  function b64FromBuf(buf){var b=new Uint8Array(buf),s='';for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
+  function playPcm(b64){
+    if(!live.ctxOut)return;
+    var bin=atob(b64), bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    var i16=new Int16Array(bytes.buffer), f32=new Float32Array(i16.length);
+    for(var j=0;j<i16.length;j++)f32[j]=i16[j]/32768;
+    var ab=live.ctxOut.createBuffer(1,f32.length,24000);
+    ab.getChannelData(0).set(f32);
+    var s=live.ctxOut.createBufferSource(); s.buffer=ab; s.connect(live.ctxOut.destination);
+    live.cursor=Math.max(live.ctxOut.currentTime,live.cursor);
+    s.start(live.cursor); live.cursor+=ab.duration;
+    live.sources.push(s);
+    s.onended=function(){var k=live.sources.indexOf(s);if(k>-1)live.sources.splice(k,1);};
+  }
+  function stopPlayback(){
+    live.sources.forEach(function(s){try{s.stop();}catch(e){}});
+    live.sources=[]; live.cursor=0;
+  }
+  function transcript(role,text){
+    var key=role==='user'?'userBub':'agentBub';
+    if(!live[key])live[key]=el('',role);
+    live[key].textContent+=text;
+    chat.scrollTop=chat.scrollHeight;
+  }
+  function finaliseTranscripts(){
+    if(live.userBub&&live.userBub.textContent)history.push({role:'user',content:live.userBub.textContent});
+    if(live.agentBub&&live.agentBub.textContent)history.push({role:'agent',content:live.agentBub.textContent});
+    live.userBub=live.agentBub=null;
+  }
+  function onLiveMessage(msg){
+    if(msg.data)playPcm(msg.data);
+    var sc=msg.serverContent;
+    if(sc){
+      if(sc.interrupted)stopPlayback();
+      if(sc.inputTranscription&&sc.inputTranscription.text)transcript('user',sc.inputTranscription.text);
+      if(sc.outputTranscription&&sc.outputTranscription.text)transcript('agent',sc.outputTranscription.text);
+      if(sc.turnComplete)finaliseTranscripts();
+    }
+    if(msg.toolCall&&msg.toolCall.functionCalls){
+      msg.toolCall.functionCalls.forEach(function(fc){
+        if(fc.name!=='show_signup_form')return;
+        var a=fc.args||{};
+        lead.name=a.name||'';lead.email=a.email||'';
+        showMiniForm(a.products||[]);
+        try{live.session.sendToolResponse({functionResponses:[{id:fc.id,name:fc.name,response:{result:'form_shown_awaiting_human_click'}}]});}catch(e){}
+      });
+    }
+    if(msg.goAway)stopLive('Voice session ending. Tap the mic to reconnect.');
+  }
+  function stopLive(notice){
+    if(live.timer){clearTimeout(live.timer);live.timer=null;}
+    stopPlayback();
+    finaliseTranscripts();
+    if(live.session){var s=live.session;live.session=null;try{s.close();}catch(e){}}
+    if(live.stream){live.stream.getTracks().forEach(function(t){t.stop();});live.stream=null;}
+    if(live.ctxIn){live.ctxIn.close().catch(function(){});live.ctxIn=null;}
+    if(live.ctxOut){live.ctxOut.close().catch(function(){});live.ctxOut=null;}
+    mic.classList.remove('rec');
+    toggle.textContent='Voice: '+(voiceOn?'on':'off');
+    if(notice)agentSay(notice,true);
+  }
+  async function startLive(){
+    mic.classList.add('rec');
+    var r=await fetch('/api/voice/token',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    if(!r.ok)throw new Error('mint '+r.status);
+    var d=await r.json();
+    var mod=await import(GENAI_CDN);
+    live.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    live.ctxOut=new AudioContext({sampleRate:24000});
+    var ai=new mod.GoogleGenAI({apiKey:d.token,httpOptions:{apiVersion:'v1alpha'}});
+    live.session=await ai.live.connect({
+      model:d.model,
+      config:{responseModalities:['AUDIO']}, /* everything else is locked in the token */
+      callbacks:{
+        onmessage:onLiveMessage,
+        onerror:function(){stopLive('Voice hit a snag. Tap the mic to try again, or just type.');},
+        onclose:function(){if(live.session)stopLive();}
+      }
     });
+    live.ctxIn=new AudioContext({sampleRate:16000});
+    var srcNode=live.ctxIn.createMediaStreamSource(live.stream);
+    await live.ctxIn.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC],{type:'text/javascript'})));
+    var node=new AudioWorkletNode(live.ctxIn,'pcm-forwarder');
+    node.port.onmessage=function(e){
+      if(!live.session)return;
+      var f32=e.data, i16=new Int16Array(f32.length);
+      for(var i=0;i<f32.length;i++){var v=Math.max(-1,Math.min(1,f32[i]));i16[i]=v<0?v*0x8000:v*0x7FFF;}
+      try{live.session.sendRealtimeInput({audio:{data:b64FromBuf(i16.buffer),mimeType:'audio/pcm;rate=16000'}});}catch(e2){}
+    };
+    srcNode.connect(node);
+    toggle.textContent='Voice: live';
+    live.timer=setTimeout(function(){stopLive('Voice session ended (five minute cap). Tap the mic to carry on.');},300000);
+  }
+
+  /* Web Speech fallback (rung 2) */
+  var rec=null,listening=false;
+  if(SR){
+    rec=new SR(); rec.lang='en-GB'; rec.interimResults=false;
     rec.onresult=function(e){ask(e.results[0][0].transcript);};
     rec.onend=function(){listening=false;mic.classList.remove('rec');};
     rec.onerror=function(){listening=false;mic.classList.remove('rec');};
-  }else{mic.style.display='none';}
+  }else{mic.style.display='none';} /* un-hidden at load if health says Live voice is available */
+  function startSR(){
+    if(!rec)return;
+    if(listening){rec.stop();return;}
+    listening=true; mic.classList.add('rec'); rec.start();
+  }
+  mic.addEventListener('click',function(){
+    if(live.session){stopLive();return;}
+    if(LIVE.voice&&window.isSecureContext){
+      startLive().catch(function(err){
+        console.warn('Gemini Live unavailable, falling back',err);
+        stopLive();
+        LIVE.voice=false;
+        if(rec)agentSay('Real-time voice is not available just now, so I have switched to basic browser speech. Tap the mic and talk.',true);
+        else{mic.style.display='none';agentSay('Voice is not available in this browser just now, but typing works perfectly.',true);}
+      });
+    }else{
+      startSR();
+    }
+  });
   toggle.addEventListener('click',function(){
     voiceOn=!voiceOn;
-    toggle.textContent='Voice: '+(voiceOn?'on':'off');
+    if(!live.session)toggle.textContent='Voice: '+(voiceOn?'on':'off');
     if(!voiceOn&&window.speechSynthesis)speechSynthesis.cancel();
   });
 

@@ -1,10 +1,11 @@
 # helix.work
 
-The public early-access front door for Helix: one static page, an Ask Helix agent, and a waiting list captured into an owned datastore. Zero dependencies, no build step.
+The public early-access front door for Helix: one static page, an Ask Helix agent, and a waiting list captured into an owned datastore. One dependency (Gemini Live token minting), no build step.
 
 ## Run
 
 ```sh
+npm install              # once; only @google/genai
 node server.mjs          # http://localhost:3000
 ```
 

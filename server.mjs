@@ -186,6 +186,42 @@ async function callGemini(message, history) {
   return { reply, action };
 }
 
+/* ---------------- Gemini Live voice: ephemeral token mint ---------------- */
+const VOICE_SUFFIX = `
+
+VOICE RULES
+
+- You are speaking aloud in a real-time conversation. Short sentences, natural rhythm, one thought at a time.
+- No lists, no headings, no formatting of any kind.
+- Once the visitor agrees to sign up and has given a name and an email, call the show_signup_form tool, then tell them the form is on their screen and the button press is theirs to make.
+- Never claim to have submitted anything.`;
+
+async function mintVoiceToken() {
+  const { GoogleGenAI } = await import('@google/genai'); // the one dependency; only loaded when voice is used
+  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY, httpOptions: { apiVersion: 'v1alpha' } });
+  const now = Date.now();
+  const token = await ai.authTokens.create({
+    config: {
+      uses: 1,
+      expireTime: new Date(now + 10 * 60_000).toISOString(),      // hard server-side session kill
+      newSessionExpireTime: new Date(now + 2 * 60_000).toISOString(), // window to actually connect
+      liveConnectConstraints: {
+        model: GEMINI_LIVE_MODEL,
+        config: {
+          responseModalities: ['AUDIO'],
+          temperature: 0.3,
+          systemInstruction: CONTEXT_PACK + VOICE_SUFFIX,
+          tools: [SIGNUP_TOOL],
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+        },
+      },
+      httpOptions: { apiVersion: 'v1alpha' },
+    },
+  });
+  return token.name;
+}
+
 /* ---------------- http helpers ---------------- */
 function json(res, status, obj, headers = {}) {
   if (res.headersSent) return;
@@ -292,8 +328,13 @@ async function handleVoiceToken(req, res) {
   if (!limited.ok) return json(res, 429, { ok: false, error: 'Too many requests.' }, { 'Retry-After': String(limited.retryAfter) });
   await readJson(req);
   if (!GEMINI_API_KEY) return json(res, 503, { degrade: 'webspeech' });
-  // Filled in with the ephemeral token mint (voice step).
-  return json(res, 503, { degrade: 'webspeech' });
+  try {
+    const token = await mintVoiceToken();
+    return json(res, 200, { token, model: GEMINI_LIVE_MODEL });
+  } catch (err) {
+    console.error('voice token mint failed:', err?.message || err);
+    return json(res, 503, { degrade: 'webspeech' }); // ladder: page falls to Web Speech
+  }
 }
 
 export const server = createServer(async (req, res) => {

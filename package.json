@@ -4,10 +4,15 @@
   "private": true,
   "type": "module",
   "description": "helix.work waiting list: static page, Ask Helix agent, owned NDJSON capture.",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test",
     "counts": "node scripts/counts.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^2.11.0"
   }
 }

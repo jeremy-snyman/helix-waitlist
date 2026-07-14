@@ -137,7 +137,7 @@ Configuration is environment-only (`.env`, all keys optional): `GEMINI_API_KEY`,
 ## 8. Phase 1 stack (as decided, 14 July 2026)
 
 - **Page:** the scaffold `index.html`, adapted in place (consent, privacy notice, endpoint wiring), served by the Node process. No build step.
-- **Server:** one zero-dependency `server.mjs` (node:http) doing three jobs: static page, waitlist capture, and the two Gemini proxies (text agent, voice token mint).
+- **Server:** one `server.mjs` (node:http) doing three jobs: static page, waitlist capture, and the two Gemini proxies (text agent, voice token mint). Single dependency `@google/genai`, used only for token minting.
 - **Store:** append-only NDJSON (`data/waitlist.ndjson`), gitignored, backed up as a file. An admin section will sit over this store later; until then `scripts/counts.mjs` answers the release-order question and the README documents erasure.
 - **Agent:** Gemini flash tier (`GEMINI_MODEL`) with the context pack as system instruction, temperature 0.3, one declared tool (`show_signup_form`). Scripted brain retained in the page as the fallback rung.
 - **Voice:** Gemini Live (`GEMINI_LIVE_MODEL`) with ephemeral tokens; Web Speech API fallback retained.
