@@ -228,7 +228,7 @@
           <button class="btn small" id="voice-toggle" type="button">Voice: off</button>
         </div>
       </div>
-      <div id="chat"></div>
+      <div id="chat" aria-live="polite" aria-label="Conversation with the Helix agent"></div>
       <div class="chips" id="chips">
         <button class="chip">What is Helix?</button>
         <button class="chip">What does sovereign mean here?</button>
@@ -237,7 +237,7 @@
         <button class="chip">Sign me up</button>
       </div>
       <div class="agent-input">
-        <button class="icon" id="mic" type="button" title="Speak to Helix">&#9679;</button>
+        <button class="icon" id="mic" type="button" title="Speak to Helix" aria-label="Speak to Helix">&#9679;</button>
         <input id="q" type="text" placeholder="Ask Helix anything..." autocomplete="off">
         <button class="send" id="send" type="button">Send</button>
       </div>
@@ -607,8 +607,8 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     if(/thank/.test(s))return "Pleasure. Anything else about Helix?";
 
     /* in scope but unmatched vs out of scope */
-    if(/helix|agent|ai|platform|product|os\b|work/.test(s))
-      return "Short version: Helix is the AI-native OS for intelligent work; you hire and retire agents on it, simply and sovereignly. Ask me about a product by name, Cortex, Tachyon, Pulse, Agents, the Marketplace, or Metis Flow, and I will go deeper.";
+    if(/helix|agent|ai|platform|product|work/.test(s))
+      return "Short version: Helix lets you hire an AI team you actually own, and retire it when the job is done, simply and sovereignly. Ask me about a product by name, Cortex, Tachyon, Pulse, Agents, the Marketplace, or Metis Flow, and I will go deeper.";
     return "That one has got nothing to do with Helix, so I will politely pass. I am good for exactly one subject: what Helix is, what the products do, and who they are for.";
   }
 
