@@ -226,7 +226,7 @@
     </div>
     <div class="agent-shell">
       <div class="agent-bar">
-        <span class="id"><i></i>Helix &middot; front-of-house agent</span>
+        <span class="id"><i></i>Vera &middot; Helix front of house</span>
         <div class="tools">
           <button class="btn small" id="voice-toggle" type="button">Voice: off</button>
         </div>
@@ -492,7 +492,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
 /* =============================== ASK HELIX =============================== */
 (function(){
   var chat=document.getElementById('chat'), input=document.getElementById('q');
-  var history=[], mode='chat', lead={name:'',email:''}, answered=0, offered=false, nudged=false;
+  var history=[], mode='intro', lead={name:'',email:''}, answered=0, offered=false, nudged=false;
 
   function el(html,cls){
     var d=document.createElement('div'); d.className='msg '+cls; d.innerHTML=html;
@@ -550,8 +550,29 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
      r:"The <b>waiting list</b> is a vote, not a queue. You tell us which products matter to you, and demand decides what we release next. One email when your products open up, nothing else. Shall I sign you up?", offer:true}
   ];
 
+  function matchesTopic(s){
+    for(var i=0;i<TOPICS.length;i++)if(TOPICS[i].m.test(s))return true;
+    return false;
+  }
   function brain(q){
     var s=q.toLowerCase().trim();
+
+    /* polite introduction: the greeting asked for a first name */
+    if(mode==='intro'){
+      mode='chat';
+      if(/^(no|rather not|prefer not|none of your)/.test(s))
+        return "Fair enough, no name needed. So, what would you like to know about Helix? The products, the sovereignty story, or who it is all for?";
+      var nm=q.match(/(?:call me|i'?m|i am|my name is|it'?s)\s+([A-Za-z][\w'-]*)/i);
+      if(!nm&&/^[A-Za-z][\w'-]*([ ][A-Za-z][\w'-]*)?[.!]?$/.test(q.trim())
+        &&!matchesTopic(s)&&!DEEP.test(s)
+        &&!/^(hi|hello|hey|yo|yes|yeah|sure|ok|okay|helix)\b/.test(s))
+        nm=[null,q.trim().replace(/[.!]$/,'').split(/\s+/)[0]];
+      if(nm){
+        lead.name=nm[1];
+        return "Lovely to meet you, <b>"+esc(nm[1])+"</b>. So, what would you like to know about Helix? The products, the sovereignty story, or who it is all for?";
+      }
+      /* not a name: answer whatever they asked instead */
+    }
 
     /* capture flows */
     if(mode==='ask_name'){
@@ -610,7 +631,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
 
     /* greetings + courtesy */
     if(/^(hi|hello|hey|good (morning|afternoon|evening)|yo)\b/.test(s))
-      return "Hello. I am the Helix front-of-house agent. Ask me what Helix is, what the products do, or who it is for. And yes, I can sign you up, though the final click stays yours.";
+      return "Hello"+(lead.name?", "+esc(lead.name):"")+". I am Vera, Helix's front of house. Ask me what Helix is, what the products do, or who it is for. And yes, I can sign you up, though the final click stays yours.";
     if(/thank/.test(s))return "Pleasure. Anything else about Helix?";
 
     /* in scope but unmatched vs out of scope */
@@ -852,7 +873,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
   });
 
   /* opening line */
-  agentSay("Hello. This page is an agent; I am it. Ask me what <b>Helix</b> is, what the products do, or who it is for. If you like what you hear, I can sign you up, though the final button press will always be yours.",true);
+  agentSay("Hello. This page is an agent; I am it. My name is <b>Vera</b>, Helix's front of house. Ask me what Helix is, what the products do, or who it is for, and if you like what you hear I can sign you up, though the final button press will always be yours. Before we begin: do you mind if I call you by your first name? What should I call you?",true);
 })();
 </script>
 </body>
