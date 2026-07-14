@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Helix — hire agents, retire agents</title>
 <meta name="description" content="Hire an AI team you actually own. Brief them by talking, put them to work, keep your data entirely yours. Simple, sovereign, voice-driven.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23020307'/%3E%3Crect x='3' y='3' width='10' height='10' fill='%23C8FF00'/%3E%3C/svg%3E">
 <!--
   helix.work waiting-list scaffold · Ink palette · © MindLynx
   WIRING (bottom of this file):
@@ -112,7 +113,9 @@
   .agent-input{display:flex;border-top:1px solid var(--line)}
   .agent-input button.icon{width:54px;border:none;border-right:1px solid var(--line);background:none;color:var(--mono);cursor:pointer;font-size:18px}
   .agent-input button.icon:hover{color:var(--lime)}
-  .agent-input button.icon.rec{color:var(--pink)}
+  .agent-input button.icon.live{color:var(--lime)}
+  .agent-input button.icon.rec{color:var(--pink);animation:recpulse 1.2s infinite}
+  @keyframes recpulse{0%,100%{opacity:1}50%{opacity:.45}}
   .agent-input input{flex:1;background:none;border:none;color:var(--text);font-family:'Archivo',sans-serif;font-size:15px;padding:16px;outline:none}
   .agent-input button.send{font-family:'Spline Sans Mono',monospace;font-size:13px;letter-spacing:.12em;text-transform:uppercase;background:var(--lime);color:#020307;border:none;padding:0 26px;cursor:pointer;font-weight:500}
   .agent-note{text-align:center;font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:var(--mono);margin-top:12px}
@@ -398,7 +401,11 @@ var AGENT_ENDPOINT="/api/agent";    /* Live agent API: POST {message, history} -
 var LIVE={agent:false,voice:false}; /* set from /api/health at load; picks the ladder rungs */
 fetch('/api/health').then(function(r){return r.json();}).then(function(d){
   LIVE.agent=!!d.agent; LIVE.voice=!!d.voice;
-  if(LIVE.voice)document.getElementById('mic').style.display='';
+  if(LIVE.voice){
+    var m=document.getElementById('mic');
+    m.style.display=''; m.classList.add('live');
+    document.getElementById('voice-toggle').textContent='Voice: start';
+  }
   var note=document.querySelector('.agent-note');
   if(note)note.textContent=LIVE.agent
     ?'Live agent. If it ever goes quiet, a scripted stand-in takes over.'
@@ -743,16 +750,23 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     if(live.ctxIn){live.ctxIn.close().catch(function(){});live.ctxIn=null;}
     if(live.ctxOut){live.ctxOut.close().catch(function(){});live.ctxOut=null;}
     mic.classList.remove('rec');
-    toggle.textContent='Voice: '+(voiceOn?'on':'off');
+    refreshVoiceUi();
     if(notice)agentSay(notice,true);
+  }
+  function refreshVoiceUi(){
+    if(live.session)toggle.textContent='Voice: live · stop';
+    else if(LIVE.voice)toggle.textContent='Voice: start';
+    else toggle.textContent='Voice: '+(voiceOn?'on':'off');
   }
   async function startLive(){
     mic.classList.add('rec');
+    toggle.textContent='Voice: connecting…';
+    /* mic permission first: a denial must not burn a rate-limited token mint */
+    live.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
     var r=await fetch('/api/voice/token',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     if(!r.ok)throw new Error('mint '+r.status);
     var d=await r.json();
     var mod=await import(GENAI_CDN);
-    live.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
     live.ctxOut=new AudioContext({sampleRate:24000});
     var ai=new mod.GoogleGenAI({apiKey:d.token,httpOptions:{apiVersion:'v1alpha'}});
     live.session=await ai.live.connect({
@@ -775,7 +789,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
       try{live.session.sendRealtimeInput({audio:{data:b64FromBuf(i16.buffer),mimeType:'audio/pcm;rate=16000'}});}catch(e2){}
     };
     srcNode.connect(node);
-    toggle.textContent='Voice: live';
+    refreshVoiceUi();
     live.timer=setTimeout(function(){stopLive('Voice session ended (five minute cap). Tap the mic to carry on.');},300000);
   }
 
@@ -792,23 +806,32 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     if(listening){rec.stop();return;}
     listening=true; mic.classList.add('rec'); rec.start();
   }
-  mic.addEventListener('click',function(){
+  function voiceFlow(){
     if(live.session){stopLive();return;}
     if(LIVE.voice&&window.isSecureContext){
       startLive().catch(function(err){
         console.warn('Gemini Live unavailable, falling back',err);
         stopLive();
+        if(err&&err.name==='NotAllowedError'){
+          agentSay('I could not get microphone access. Allow the microphone for this page and press Voice again, or just type.',true);
+          return;
+        }
         LIVE.voice=false;
+        mic.classList.remove('live');
+        refreshVoiceUi();
         if(rec)agentSay('Real-time voice is not available just now, so I have switched to basic browser speech. Tap the mic and talk.',true);
         else{mic.style.display='none';agentSay('Voice is not available in this browser just now, but typing works perfectly.',true);}
       });
     }else{
       startSR();
     }
-  });
+  }
+  mic.addEventListener('click',voiceFlow);
   toggle.addEventListener('click',function(){
+    /* with live voice available this button IS the voice control; otherwise it toggles spoken replies */
+    if(live.session||(LIVE.voice&&window.isSecureContext)){voiceFlow();return;}
     voiceOn=!voiceOn;
-    if(!live.session)toggle.textContent='Voice: '+(voiceOn?'on':'off');
+    refreshVoiceUi();
     if(!voiceOn&&window.speechSynthesis)speechSynthesis.cancel();
   });
 
