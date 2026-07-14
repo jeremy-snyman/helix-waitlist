@@ -394,7 +394,9 @@
 <script>
 /* =============================== CONFIG =============================== */
 var FORM_ENDPOINT="/api/waitlist";  /* Own API for waiting-list JSON POSTs. Empty = demo mode. */
-var AGENT_ENDPOINT="";              /* Live agent API: POST {message, history} -> {reply}. Empty = scripted demo brain. */
+var AGENT_ENDPOINT="/api/agent";    /* Live agent API: POST {message, history} -> {reply, action?}. Scripted brain is the fallback. */
+var LIVE={agent:false,voice:false}; /* set from /api/health at load; picks the ladder rungs */
+fetch('/api/health').then(function(r){return r.json();}).then(function(d){LIVE.agent=!!d.agent;LIVE.voice=!!d.voice;}).catch(function(){});
 
 /* ---- riseField: drifting dots, density rising to the right ---- */
 (function(){
@@ -603,13 +605,14 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     return "That one has got nothing to do with Helix, so I will politely pass. I am good for exactly one subject: what Helix is, what the products do, and who they are for.";
   }
 
-  function showMiniForm(){
+  function showMiniForm(pre){
+    pre=pre||[];
     var html='<b>Your sign-up</b><div class="mini-form">'
       +'<input type="text" id="mf-name" value="'+esc(lead.name)+'" placeholder="Name">'
       +'<input type="email" id="mf-email" value="'+esc(lead.email)+'" placeholder="Work email">'
       +'<div class="mf-checks">'
       +['Cortex','Tachyon','Pulse','Helix Agents','Marketplace'].map(function(p){
-        return '<label class="ck"><input type="checkbox" value="'+p+'"> '+p+'</label>';}).join('')
+        return '<label class="ck"><input type="checkbox" value="'+p+'"'+(pre.indexOf(p)>-1?' checked':'')+'> '+p+'</label>';}).join('')
       +'</div>'
       +'<label class="consent"><input type="checkbox" id="mf-consent"> <span>Keep my details and email me about early access (<a href="#privacy">privacy notice</a>)</span></label>'
       +'<button class="btn primary" id="mf-go" type="button">Put me on the list</button></div>';
@@ -629,20 +632,34 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     });
   }
 
+  function scriptedReply(q,t){
+    var r=brain(q);
+    history.push({role:'agent',content:r});
+    if(t){setTimeout(function(){t.innerHTML=r;chat.scrollTop=chat.scrollHeight;speak(r);},300);}
+    else agentSay(r);
+  }
   function ask(q){
     if(!q.trim())return;
     el(esc(q),'user');
     history.push({role:'user',content:q});
-    if(AGENT_ENDPOINT){
+    if(AGENT_ENDPOINT&&LIVE.agent){
       var t=el('<span class="typing"><i></i><i></i><i></i></span>','agent');
       fetch(AGENT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:q,history:history})})
-        .then(function(r){return r.json();})
-        .then(function(d){t.innerHTML=d.reply;history.push({role:'agent',content:d.reply});speak(d.reply);})
-        .catch(function(){t.innerHTML="I seem to be offline. The form below works the old-fashioned way.";});
+        .then(function(r){if(!r.ok)throw 0;return r.json();})
+        .then(function(d){
+          if(!d.reply)throw 0;
+          t.textContent=d.reply; /* live model output is untrusted: never innerHTML */
+          chat.scrollTop=chat.scrollHeight;
+          history.push({role:'agent',content:d.reply});
+          speak(d.reply);
+          if(d.action&&d.action.type==='show_signup_form'){
+            lead.name=d.action.name||'';lead.email=d.action.email||'';
+            setTimeout(function(){showMiniForm(d.action.products||[]);},600);
+          }
+        })
+        .catch(function(){scriptedReply(q,t);}); /* live brain down: the scripted one takes over */
     }else{
-      var r=brain(q);
-      history.push({role:'agent',content:r});
-      agentSay(r);
+      scriptedReply(q);
     }
     input.value='';
   }

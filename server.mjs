@@ -19,8 +19,8 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.DATA_DIR || join(ROOT, 'data');
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const GEMINI_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || 'gemini-live-2.5-flash-preview';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+const GEMINI_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || 'gemini-3.1-flash-live-preview';
 
 export const PRODUCTS = ['Cortex', 'Tachyon', 'Pulse', 'Helix Agents', 'Marketplace'];
 const SOURCES = ['helix.work', 'helix.work/agent'];
@@ -111,6 +111,81 @@ export function redact(text) {
   return { text: out, found };
 }
 
+/* ---------------- Ask Helix text agent (Gemini) ---------------- */
+const CONTEXT_PACK = await readFile(join(ROOT, 'context-pack.md'), 'utf8').catch(() => '');
+
+const TOOL_SUFFIX = `
+
+OUTPUT RULES
+
+- Reply in plain conversational text. No markdown, no HTML, no bullet lists unless asked.
+- Keep replies to a few sentences.
+- Once the visitor has agreed to sign up and given you a name and an email, call the show_signup_form tool with what you know. Do not call it before you have both.
+- Never claim to have submitted anything. The visitor presses the button themselves.`;
+
+const SIGNUP_TOOL = {
+  functionDeclarations: [{
+    name: 'show_signup_form',
+    description: 'Render the pre-filled waiting-list sign-up form in the chat. Call once the visitor has agreed to sign up and given a name and email. Render-only: the visitor reviews the form and presses submit themselves.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        name: { type: 'STRING', description: 'Visitor name as given' },
+        email: { type: 'STRING', description: 'Visitor email as given' },
+        products: { type: 'ARRAY', items: { type: 'STRING', enum: PRODUCTS }, description: 'Products the visitor showed interest in' },
+      },
+      required: ['name', 'email'],
+    },
+  }],
+};
+
+function toGeminiContents(message, history) {
+  const contents = [];
+  for (const turn of (Array.isArray(history) ? history.slice(-20) : [])) {
+    if (!turn || typeof turn.content !== 'string') continue;
+    const text = turn.content.replace(/<[^>]+>/g, '').trim(); // scripted-brain replies carry HTML
+    if (!text) continue;
+    contents.push({ role: turn.role === 'agent' ? 'model' : 'user', parts: [{ text: text.slice(0, 2000) }] });
+  }
+  while (contents.length && contents[0].role === 'model') contents.shift(); // must open with user
+  const last = contents[contents.length - 1];
+  if (!last || last.role !== 'user' || last.parts[0].text !== message) {
+    contents.push({ role: 'user', parts: [{ text: message }] }); // page pushes message into history pre-POST; dedupe
+  }
+  return contents;
+}
+
+async function callGemini(message, history) {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: CONTEXT_PACK + TOOL_SUFFIX }] },
+      contents: toGeminiContents(message, history),
+      generationConfig: { temperature: 0.3, maxOutputTokens: 500 },
+      tools: [SIGNUP_TOOL],
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`gemini ${res.status}`);
+  const parts = (await res.json()).candidates?.[0]?.content?.parts ?? [];
+  let reply = parts.filter((p) => p.text).map((p) => p.text).join(' ').trim();
+  const call = parts.find((p) => p.functionCall)?.functionCall;
+  let action;
+  if (call?.name === 'show_signup_form') {
+    const args = call.args || {};
+    action = {
+      type: 'show_signup_form',
+      name: clean(args.name, 200),
+      email: clean(args.email, 254).toLowerCase(),
+      products: Array.isArray(args.products) ? args.products.filter((p) => PRODUCTS.includes(p)) : [],
+    };
+    reply ||= 'Here is your form, pre-filled. Tick the products you want first, check the consent box, then press the button. The button press is yours to make, not mine.';
+  }
+  if (!reply) throw new Error('empty reply'); // safety block or similar: let the scripted brain take it
+  return { reply, action };
+}
+
 /* ---------------- http helpers ---------------- */
 function json(res, status, obj, headers = {}) {
   if (res.headersSent) return;
@@ -195,10 +270,20 @@ async function handleAgent(req, res) {
   const ip = clientIp(req);
   const limited = rateLimit('chat', ip);
   if (!limited.ok) return json(res, 429, { ok: false, error: 'Too many requests.' }, { 'Retry-After': String(limited.retryAfter) });
-  await readJson(req); // consume + validate shape even in fallback mode
+  const body = await readJson(req);
   if (!GEMINI_API_KEY) return json(res, 503, { fallback: true });
-  // Filled in with the Gemini generateContent call (text agent step).
-  return json(res, 503, { fallback: true });
+  const message = clean(body.message, 2000);
+  if (!message) return json(res, 400, { ok: false, error: 'A message is required.' });
+  try {
+    const { reply, action } = await callGemini(message, body.history);
+    const filtered = redact(reply);
+    if (filtered.found.length) {
+      appendRecord('redactions.ndjson', { ts: new Date().toISOString(), tokens: filtered.found, ip }).catch(() => {});
+    }
+    return json(res, 200, action ? { reply: filtered.text, action } : { reply: filtered.text });
+  } catch {
+    return json(res, 503, { fallback: true }); // page drops to the scripted brain
+  }
 }
 
 async function handleVoiceToken(req, res) {
