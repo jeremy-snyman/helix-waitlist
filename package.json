@@ -1,0 +1,13 @@
+{
+  "name": "helix-work",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "helix.work waiting list: static page, Ask Helix agent, owned NDJSON capture.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test",
+    "counts": "node scripts/counts.mjs"
+  }
+}

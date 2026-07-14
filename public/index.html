@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helix — hire agents, retire agents</title>
+<meta name="description" content="Hire an AI team you actually own. Brief them by talking, put them to work, keep your data entirely yours. Simple, sovereign, voice-driven.">
+<!--
+  helix.work waiting-list scaffold · Ink palette · © MindLynx
+  WIRING (bottom of this file):
+    FORM_ENDPOINT  — Formspree / Tally / own-API URL for waiting-list JSON POSTs. Empty = demo mode (console log).
+    AGENT_ENDPOINT — URL of a real LLM agent API accepting {message, history} and returning {reply}.
+                     Empty = the built-in scripted brain answers (demo mode).
+  Placeholders to replace before launch: GitHub org URL, Metis Flow site URL, contact email.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#020307; --panel:#04070D; --line:#1B2030;
+    --text:#F2F5F0; --muted:#C0C5D2; --mono:#7C8393;
+    --lime:#C8FF00; --lavender:#A78BFF; --pink:#FF3D8A;
+    --amber:#FFB300; --mint:#2DF1B4; --cyan:#00E5FF;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:'Archivo',sans-serif;line-height:1.55;font-size:16px}
+  a{color:inherit}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+  .mono{font-family:'Spline Sans Mono',monospace}
+  .eyebrow{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--mono)}
+  h1,h2{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.01em;line-height:1.04}
+  h1{font-size:clamp(44px,7.5vw,92px)}
+  h2{font-size:clamp(28px,4vw,44px)}
+
+  header{border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(2,3,7,.92);backdrop-filter:blur(4px);z-index:10}
+  .nav{display:flex;justify-content:space-between;align-items:center;height:58px;gap:16px}
+  .logo{font-family:'Anton',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.04em;text-decoration:none}
+  .logo i{font-style:normal;color:var(--lime)}
+  .nav .links{display:flex;gap:10px;align-items:center}
+  .nav a{text-decoration:none}
+
+  .btn{display:inline-block;font-family:'Spline Sans Mono',monospace;font-size:13px;letter-spacing:.12em;text-transform:uppercase;padding:12px 22px;border:1px solid var(--line);color:var(--text);background:none;cursor:pointer;text-decoration:none}
+  .btn:hover{border-color:var(--mono)}
+  .btn.primary{background:var(--lime);border-color:var(--lime);color:#020307;font-weight:500}
+  .btn.primary:hover{background:#d6ff3d;border-color:#d6ff3d}
+  .btn.small{padding:8px 14px;font-size:11.5px}
+
+  .hero{position:relative;padding:100px 0 80px;border-bottom:1px solid var(--line);overflow:hidden}
+  .hero canvas{position:absolute;inset:0;width:100%;height:100%}
+  .hero .wrap{position:relative}
+  .hero h1 span{color:var(--lime)}
+  .hero p.sub{max-width:660px;color:var(--muted);font-size:19px;margin:22px 0 34px}
+  .hero .os-io{display:flex;gap:0;border:1px solid var(--line);max-width:660px;margin-bottom:34px;background:var(--panel)}
+  .hero .os-io div{padding:16px 20px;flex:1}
+  .hero .os-io div+div{border-left:1px solid var(--line)}
+  .hero .os-io b{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:6px}
+  .hero .os-io p{color:var(--muted);font-size:14px}
+
+  .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));border-bottom:1px solid var(--line);background:var(--panel)}
+  .pillars div{padding:20px 24px;border-right:1px solid var(--line)}
+  .pillars div:last-child{border-right:none}
+  .pillars b{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:4px}
+  .pillars p{color:var(--muted);font-size:13.5px}
+
+  section{padding:80px 0;border-bottom:1px solid var(--line)}
+  .sect-head{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:40px;flex-wrap:wrap}
+  .sect-head p{color:var(--muted);max-width:480px}
+  .sect-head h2 span{color:var(--lime)}
+
+  .who{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);background:var(--panel)}
+  .who>div{padding:30px}
+  .who>div+div{border-left:1px solid var(--line)}
+  .who b.tag{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px}
+  .who p{color:var(--muted);font-size:15px}
+  .who ul{margin:12px 0 0 0;list-style:none}
+  .who li{color:var(--muted);font-size:14px;padding:6px 0 6px 18px;position:relative;border-top:1px solid var(--line)}
+  .who li::before{content:"";position:absolute;left:0;top:13px;width:7px;height:7px;background:var(--lavender)}
+  @media(max-width:760px){.who{grid-template-columns:1fr}.who>div+div{border-left:none;border-top:1px solid var(--line)}}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0;border:1px solid var(--line);background:var(--panel)}
+  .card{padding:28px;border:0 solid var(--line);border-right-width:1px;border-bottom-width:1px;display:flex;flex-direction:column;gap:12px}
+  .card .idx{display:flex;justify-content:space-between;align-items:center}
+  .card .idx .num{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);letter-spacing:.14em}
+  .card .swatch{width:10px;height:10px}
+  .card h3{font-family:'Anton',sans-serif;font-weight:400;font-size:26px;text-transform:uppercase;letter-spacing:.02em}
+  .card p{color:var(--muted);font-size:14.5px;flex:1}
+  .card .for{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);letter-spacing:.06em}
+  .card button,.card a.btn{align-self:flex-start}
+
+  /* ---- Ask Helix ---- */
+  .agent-shell{border:1px solid var(--line);background:var(--panel);max-width:860px;margin:0 auto}
+  .agent-bar{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .agent-bar .id{display:flex;align-items:center;gap:10px;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--mono)}
+  .agent-bar .id i{width:10px;height:10px;background:var(--lime);display:inline-block}
+  .agent-bar .tools{display:flex;gap:8px}
+  #chat{height:440px;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+  .msg{max-width:82%;padding:12px 16px;font-size:15px;line-height:1.5}
+  .msg.agent{background:#070B14;border:1px solid var(--line);align-self:flex-start}
+  .msg.agent b{color:var(--lime);font-weight:600}
+  .msg.user{background:var(--lime);color:#020307;align-self:flex-end}
+  .msg .mini-form{display:grid;gap:10px;margin-top:10px;min-width:280px}
+  .msg .mini-form input[type=text],.msg .mini-form input[type=email]{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);font-family:'Archivo',sans-serif;font-size:14px;padding:10px 12px;outline:none}
+  .msg .mini-form input:focus{border-color:var(--lime)}
+  .msg .mini-form .mf-checks{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .msg .mini-form label.ck{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);border:1px solid var(--line);padding:8px 10px;cursor:pointer}
+  .msg .mini-form label.ck input{accent-color:var(--lime)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px}
+  .chip{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.06em;border:1px solid var(--line);color:var(--muted);background:none;padding:8px 12px;cursor:pointer}
+  .chip:hover{border-color:var(--lime);color:var(--text)}
+  .agent-input{display:flex;border-top:1px solid var(--line)}
+  .agent-input button.icon{width:54px;border:none;border-right:1px solid var(--line);background:none;color:var(--mono);cursor:pointer;font-size:18px}
+  .agent-input button.icon:hover{color:var(--lime)}
+  .agent-input button.icon.rec{color:var(--pink)}
+  .agent-input input{flex:1;background:none;border:none;color:var(--text);font-family:'Archivo',sans-serif;font-size:15px;padding:16px;outline:none}
+  .agent-input button.send{font-family:'Spline Sans Mono',monospace;font-size:13px;letter-spacing:.12em;text-transform:uppercase;background:var(--lime);color:#020307;border:none;padding:0 26px;cursor:pointer;font-weight:500}
+  .agent-note{text-align:center;font-family:'Spline Sans Mono',monospace;font-size:11.5px;color:var(--mono);margin-top:12px}
+  .typing i{display:inline-block;width:5px;height:5px;background:var(--mono);margin-right:4px;animation:blink 1s infinite}
+  .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+
+  .metis{display:flex;justify-content:space-between;align-items:center;gap:32px;border:1px solid var(--line);background:var(--panel);padding:32px;flex-wrap:wrap}
+  .metis h3{font-family:'Anton',sans-serif;font-weight:400;font-size:28px;text-transform:uppercase}
+  .metis p{color:var(--muted);max-width:520px}
+  .metis .links{display:flex;gap:12px;flex-wrap:wrap}
+
+  .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:760px}
+  .formgrid .full{grid-column:1/-1}
+  label{display:block;font-family:'Spline Sans Mono',monospace;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mono);margin-bottom:8px}
+  input[type=text],input[type=email],textarea{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:'Archivo',sans-serif;font-size:15px;padding:13px 14px;outline:none}
+  input:focus,textarea:focus{border-color:var(--lime)}
+  textarea{min-height:90px;resize:vertical}
+  .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+  .check{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--panel);padding:12px 14px;cursor:pointer;font-size:14.5px}
+  .check input{accent-color:var(--lime);width:15px;height:15px}
+  .check.hot{border-color:var(--lime)}
+  .form-note{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);margin-top:14px}
+  .success{border:1px solid var(--mint);background:var(--panel);padding:22px;max-width:760px;display:none}
+  .success b{color:var(--mint)}
+
+  footer{padding:44px 0 60px}
+  .foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;color:var(--mono);font-family:'Spline Sans Mono',monospace;font-size:12.5px;letter-spacing:.06em}
+  .foot a{color:var(--muted);text-decoration:none}
+  .foot a:hover{color:var(--text)}
+
+  @media(max-width:640px){
+    .formgrid{grid-template-columns:1fr}
+    .hero{padding:64px 0 54px}
+    section{padding:56px 0}
+    #chat{height:380px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="#top">Helix<i>.</i></a>
+    <div class="links">
+      <a class="btn" href="#ask">Ask Helix</a>
+      <a class="btn primary" href="#waitlist">Join the waiting list</a>
+    </div>
+  </div>
+</header>
+
+<div class="hero" id="top">
+  <canvas id="rise"></canvas>
+  <div class="wrap">
+    <p class="eyebrow">Early access &middot; join the waiting list</p>
+    <h1>Hire an AI team<br>you <span>actually own</span></h1>
+    <p class="sub">Brief them by talking. Put them to work. Your data, your memory and your decisions stay entirely yours, and you stand them down the moment the job is done.</p>
+    <a class="btn primary" href="#ask">Ask Helix anything</a>
+    <a class="btn" href="#products" style="margin-left:10px">See the products</a>
+  </div>
+</div>
+
+<div class="pillars">
+  <div><b style="color:var(--lime)">Hire</b><p>An agent or a whole team, working in minutes. Retire them the moment the job is done. No headcount, no infrastructure.</p></div>
+  <div><b style="color:var(--mint)">Own</b><p>Your data, memory and decisions stay in your environment. Never sent to the labs, never training someone else's model.</p></div>
+  <div><b style="color:var(--cyan)">Speak</b><p>No dashboards, no prompts. Say what you need, out loud, and the team gets to work.</p></div>
+</div>
+
+<section id="who">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>Who is Helix for?</h2>
+      <p>Two doors into the same system. One for people who want the work done, one for people who build.</p>
+    </div>
+    <div class="who">
+      <div>
+        <b class="tag" style="color:var(--mint)">For operators</b>
+        <p>Non-technical people who just want to utilise AI. Hire an agent or a team, tell it what you need, in your own words or your own voice, and stay safe while you do it. No dependence on any single large lab, and no infrastructure to run.</p>
+      </div>
+      <div>
+        <b class="tag" style="color:var(--lavender)">For builders</b>
+        <p>Developers who want to reuse the platform's capability inside their own agentic workloads:</p>
+        <ul>
+          <li>Cortex memory, sovereign and self-hosted</li>
+          <li>Skills created in your workflows, reusable everywhere</li>
+          <li>A rules engine that makes agents deterministic where it matters</li>
+          <li>Generative UI: the interface builds itself around the task</li>
+          <li>Voice as a first-class interface across all of it</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ask" style="background:linear-gradient(180deg,#020307,#04070D)">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>Don't read about it. <span>Ask it.</span></h2>
+      <p>This page is an agent. Ask Helix what it is, what the products do, or who it is for. It can sign you up too, though the final button press is always yours.</p>
+    </div>
+    <div class="agent-shell">
+      <div class="agent-bar">
+        <span class="id"><i></i>Helix &middot; front-of-house agent</span>
+        <div class="tools">
+          <button class="btn small" id="voice-toggle" type="button">Voice: off</button>
+        </div>
+      </div>
+      <div id="chat"></div>
+      <div class="chips" id="chips">
+        <button class="chip">What is Helix?</button>
+        <button class="chip">What does sovereign mean here?</button>
+        <button class="chip">How do I hire an agent?</button>
+        <button class="chip">What can developers reuse?</button>
+        <button class="chip">Sign me up</button>
+      </div>
+      <div class="agent-input">
+        <button class="icon" id="mic" type="button" title="Speak to Helix">&#9679;</button>
+        <input id="q" type="text" placeholder="Ask Helix anything..." autocomplete="off">
+        <button class="send" id="send" type="button">Send</button>
+      </div>
+    </div>
+    <p class="agent-note">Demo brain on this scaffold; wire AGENT_ENDPOINT to a live model before launch.</p>
+  </div>
+</section>
+
+<section id="products">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>The products</h2>
+      <p>Each one stands on its own. Together they are Helix. Tell us which you want first; we ship in demand order.</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="idx"><span class="num">01 / MEMORY</span><span class="swatch" style="background:var(--pink)"></span></div>
+        <h3>Cortex</h3>
+        <p>Sovereign memory for AI. Long-lived, self-organising memory that lives in your environment, on your infrastructure, under your control. Your agents remember; your data never leaves.</p>
+        <p class="for">FOR DEVELOPERS + ENTERPRISES</p>
+        <button class="btn" data-product="Cortex">Join waiting list</button>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">02 / DATA</span><span class="swatch" style="background:var(--cyan)"></span></div>
+        <h3>Tachyon</h3>
+        <p>Data and event streaming without the ceremony. Connect systems, move events and track everything that happens, in real time, with governance built in.</p>
+        <p class="for">FOR DATA + PLATFORM TEAMS</p>
+        <button class="btn" data-product="Tachyon">Join waiting list</button>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">03 / ANALYTICS</span><span class="swatch" style="background:var(--lavender)"></span></div>
+        <h3>Pulse</h3>
+        <p>Talk to your data. Ask questions in plain language and get answers, dashboards and decisions, without a BI team in the loop.</p>
+        <p class="for">FOR BUSINESS + DATA LEADERS</p>
+        <button class="btn" data-product="Pulse">Join waiting list</button>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">04 / EXECUTION</span><span class="swatch" style="background:var(--amber)"></span></div>
+        <h3>Helix Agents</h3>
+        <p>Governed agent execution. Agents and teams of agents that do real work inside real guardrails: gated actions, full audit, human control where it matters.</p>
+        <p class="for">FOR TEAMS THAT SHIP WORK</p>
+        <button class="btn" data-product="Helix Agents">Join waiting list</button>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">05 / HIRE OUTCOMES</span><span class="swatch" style="background:var(--lime)"></span></div>
+        <h3>The Marketplace</h3>
+        <p>Hire a team of agents without the overhead of infrastructure. Compliance as a Service with every framework in memory. Architecture teams on demand. Tula, the estimator that prices work before you commit.</p>
+        <p class="for">FOR BUYERS OF OUTCOMES</p>
+        <button class="btn" data-product="Marketplace">Join waiting list</button>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">06 / OPEN SOURCE</span><span class="swatch" style="background:var(--mint)"></span></div>
+        <h3>Metis Flow</h3>
+        <p>Our open-source project, free and building in public. Star it, break it, shape it. The fastest way to see how we think.</p>
+        <p class="for">FOR DEVELOPERS &middot; FREE FOREVER</p>
+        <a class="btn" href="https://github.com/REPLACE-ME" target="_blank" rel="noopener">View on GitHub</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="metis">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Building in the open</p>
+        <h3>Start with Metis Flow today</h3>
+        <p>Helix products arrive in sequence. Metis Flow is already here: open source, free, and the first taste of the platform underneath.</p>
+      </div>
+      <div class="links">
+        <a class="btn" href="https://github.com/REPLACE-ME" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn" href="https://REPLACE-ME.dev" target="_blank" rel="noopener">Metis Flow site</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="waitlist">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>Join the <span>waiting list</span></h2>
+      <p>Prefer a form to a conversation? Fair enough. Pick the products you care about; the list decides what we release next.</p>
+    </div>
+    <form id="wl-form" class="formgrid" novalidate>
+      <div>
+        <label for="f-name">Name</label>
+        <input type="text" id="f-name" name="name" required autocomplete="name">
+      </div>
+      <div>
+        <label for="f-email">Work email</label>
+        <input type="email" id="f-email" name="email" required autocomplete="email">
+      </div>
+      <div class="full">
+        <label for="f-company">Company (optional)</label>
+        <input type="text" id="f-company" name="company" autocomplete="organization">
+      </div>
+      <div class="full">
+        <label>I want first access to</label>
+        <div class="checks" id="wl-checks">
+          <label class="check"><input type="checkbox" name="products" value="Cortex"> Cortex</label>
+          <label class="check"><input type="checkbox" name="products" value="Tachyon"> Tachyon</label>
+          <label class="check"><input type="checkbox" name="products" value="Pulse"> Pulse</label>
+          <label class="check"><input type="checkbox" name="products" value="Helix Agents"> Helix Agents</label>
+          <label class="check"><input type="checkbox" name="products" value="Marketplace"> The Marketplace</label>
+        </div>
+      </div>
+      <div class="full">
+        <label for="f-use">What would you point it at? (optional)</label>
+        <textarea id="f-use" name="use_case" placeholder="The job you would give it on day one"></textarea>
+      </div>
+      <div class="full">
+        <button type="submit" class="btn primary">Put me on the list</button>
+        <p class="form-note">No spam, no sharing. One email when your products open up.</p>
+      </div>
+    </form>
+    <div class="success" id="wl-success">
+      <b>You are on the list.</b>
+      <p style="color:var(--muted);margin-top:6px">We will email you the moment your products open up. Until then, Metis Flow is live and free.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <span>&copy; MindLynx &middot; Helix is a MindLynx product</span>
+    <span><a href="mailto:hello@helix.work">hello@helix.work</a> &nbsp;&middot;&nbsp; <a href="https://github.com/REPLACE-ME" target="_blank" rel="noopener">GitHub</a></span>
+  </div>
+</footer>
+
+<script>
+/* =============================== CONFIG =============================== */
+var FORM_ENDPOINT="";   /* Formspree / Tally / own API for waiting-list JSON POSTs. Empty = demo mode. */
+var AGENT_ENDPOINT="";  /* Live agent API: POST {message, history} -> {reply}. Empty = scripted demo brain. */
+
+/* ---- riseField: drifting dots, density rising to the right ---- */
+(function(){
+  var cv=document.getElementById('rise'), ctx=cv.getContext('2d');
+  var pal=['#C8FF00','#A78BFF','#FF3D8A','#FFB300','#2DF1B4','#00E5FF'];
+  var dots=[], W, H;
+  function size(){W=cv.width=cv.offsetWidth*devicePixelRatio;H=cv.height=cv.offsetHeight*devicePixelRatio;}
+  function seed(){
+    dots=[];
+    var n=Math.floor(cv.offsetWidth/9);
+    for(var i=0;i<n;i++){
+      var p=Math.pow(Math.random(),0.6);
+      dots.push({x:p,y:Math.random(),r:(Math.random()*1.3+0.7)*devicePixelRatio,
+        c:Math.random()<0.78?'#1B2030':pal[Math.floor(Math.random()*pal.length)],
+        a:0.35+Math.random()*0.65,vy:(0.05+Math.random()*0.12)/1000});
+    }
+  }
+  function tick(){
+    ctx.clearRect(0,0,W,H);
+    for(var i=0;i<dots.length;i++){
+      var d=dots[i]; d.y-=d.vy*16; if(d.y<-0.02)d.y=1.02;
+      ctx.globalAlpha=d.a*(0.25+d.x*0.75); ctx.fillStyle=d.c;
+      ctx.beginPath(); ctx.arc(d.x*W,d.y*H,d.r,0,6.2832); ctx.fill();
+    }
+    ctx.globalAlpha=1; requestAnimationFrame(tick);
+  }
+  size(); seed(); tick();
+  addEventListener('resize',function(){size();seed();});
+})();
+
+/* ---- shared waiting-list submission ---- */
+function submitWaitlist(payload,onDone){
+  payload.source=payload.source||'helix.work';
+  if(FORM_ENDPOINT){
+    fetch(FORM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(onDone).catch(function(){console.error('Waitlist POST failed',payload);onDone();});
+  }else{
+    console.log('Waitlist signup (demo mode, no endpoint set):',payload);
+    onDone();
+  }
+}
+
+/* ---- classic form ---- */
+document.querySelectorAll('.card button[data-product]').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var v=btn.getAttribute('data-product');
+    document.querySelectorAll('#wl-checks input').forEach(function(cb){
+      if(cb.value===v){cb.checked=true;cb.closest('.check').classList.add('hot');}
+    });
+    document.getElementById('waitlist').scrollIntoView({behavior:'smooth'});
+  });
+});
+document.querySelectorAll('#wl-checks input').forEach(function(cb){
+  cb.addEventListener('change',function(){cb.closest('.check').classList.toggle('hot',cb.checked);});
+});
+document.getElementById('wl-form').addEventListener('submit',function(e){
+  e.preventDefault();
+  var f=e.target;
+  if(!f.name.value.trim()||!/.+@.+\..+/.test(f.email.value)){f.reportValidity&&f.reportValidity();return;}
+  submitWaitlist({
+    name:f.name.value.trim(),email:f.email.value.trim(),company:f.company.value.trim(),
+    products:Array.prototype.map.call(document.querySelectorAll('#wl-checks input:checked'),function(c){return c.value;}),
+    use_case:f.use_case.value.trim()
+  },function(){
+    f.style.display='none';
+    document.getElementById('wl-success').style.display='block';
+  });
+});
+
+/* =============================== ASK HELIX =============================== */
+(function(){
+  var chat=document.getElementById('chat'), input=document.getElementById('q');
+  var history=[], mode='chat', lead={name:'',email:''}, answered=0, offered=false, nudged=false;
+
+  function el(html,cls){
+    var d=document.createElement('div'); d.className='msg '+cls; d.innerHTML=html;
+    chat.appendChild(d); chat.scrollTop=chat.scrollHeight; return d;
+  }
+  function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+  var voiceOn=false;
+  function speak(text){
+    if(!voiceOn||!window.speechSynthesis)return;
+    var u=new SpeechSynthesisUtterance(text.replace(/<[^>]+>/g,''));
+    u.lang='en-GB'; speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }
+  function agentSay(html,noVoice){
+    var t=el('<span class="typing"><i></i><i></i><i></i></span>','agent');
+    setTimeout(function(){
+      t.innerHTML=html; chat.scrollTop=chat.scrollHeight;
+      if(!noVoice)speak(html);
+    },450+Math.random()*350);
+  }
+
+  /* ---- the scripted demo brain ---- */
+  var DEEP=/(pric|cost|how much|invest|fund|valuat|raise|equity|partner|ionos|roadmap|launch date|release date|when (will|do|does|is)|tech stack|architecture|which (llm|model)|what (llm|model)|database|infrastructure detail)/;
+  var TOPICS=[
+    {m:/(what is|what'?s|tell me about|explain) helix|^helix\??$|about helix/,
+     r:"<b>Helix</b> lets you hire an AI team you actually own. Hire an agent or a whole team, brief them by talking, put them to work, then retire them when the job is done, all while your data and memory stay entirely yours. Simple, sovereign, voice-driven. Want to dig into the products, sovereignty, or who it is for?"},
+    {m:/sovereign|lock[- ]?in|large labs|big labs|openai|anthropic|own (data|environment)|data (stay|leave|privacy)|safe/,
+     r:"<b>Sovereign</b> means it is yours. Your data and your agents' memory live in your environment, not ours and not a big lab's. You are never locked to a single model provider, and everything an agent does runs inside guardrails: gated actions, full audit, human control where it matters. Safety here is a design decision, not a setting."},
+    {m:/hire|retire|how do i get an agent|rent/,
+     r:"You <b>hire</b> an agent the way you would hire a person, minus the recruitment agency: pick one, or a whole team, point it at the job, and it starts. When the job is done you <b>retire</b> it. No infrastructure, no idle costs, no long goodbyes. Want to be first in line when hiring opens?"},
+    {m:/marketplace|team of agents|compliance|architecture|tula|estimat/,
+     r:"The <b>Marketplace</b> is where you hire a team of agents without the overhead of infrastructure. First residents: <b>Compliance as a Service</b>, teams with every framework held in memory; <b>Architecture</b> teams on demand; and <b>Tula</b>, an estimator that prices work before you commit."},
+    {m:/cortex|memory|remember/,
+     r:"<b>Cortex</b> is sovereign memory for AI: long-lived, self-organising memory that lives on your infrastructure. Your agents remember everything they learn, and your data never leaves your environment. Developers use it inside their own agentic workloads too."},
+    {m:/tachyon|streaming|events?|integrat|connect systems/,
+     r:"<b>Tachyon</b> moves your data and events in real time, connecting systems without the usual ceremony, with governance built in. It is the bloodstream that keeps every agent fed with live data."},
+    {m:/pulse|analytics|\bbi\b|dashboards?|talk to (my|your|the) data/,
+     r:"<b>Pulse</b> lets you talk to your data. Ask a question in plain language, get the answer, the chart, or the decision, without a BI team in the loop."},
+    {m:/agents?( |$)|execution|guardrails?|governed|audit/,
+     r:"<b>Helix Agents</b> is governed execution: agents and teams that do real work inside real guardrails. Gated actions, full audit trails, and human control exactly where you want it. That is what makes hiring an agent safe enough to be boring."},
+    {m:/skills?/,
+     r:"<b>Skills</b> are capabilities born in your workflows. When an agent learns to do something your way, that becomes a reusable skill, available to every other agent you run, and to developers building on the platform."},
+    {m:/rules?|determinis/,
+     r:"The <b>rules engine</b> makes agents deterministic where it matters. Creativity is lovely; payroll is not the place for it. You decide where behaviour must be exact, and Helix holds that line."},
+    {m:/genui|generative ui|interface|screens?/,
+     r:"<b>Generative UI</b> means the interface builds itself around the task. Instead of you learning the software, the software assembles the right screen for the moment you are in."},
+    {m:/voice|speak|talk to it|microphone/,
+     r:"All of Helix is <b>voice-driven</b>. Talk to your agents like colleagues: brief them, question them, redirect them, out loud. Try the microphone button on this very chat."},
+    {m:/metis|open source|github|free/,
+     r:"<b>Metis Flow</b> is our open-source project, free and building in public on GitHub. It is the fastest way to see how we think. Star it, break it, shape it."},
+    {m:/who (is|'?s) (it|helix) for|for me|audience|non[- ]?technical|developers?/,
+     r:"Two doors. <b>Operators</b>: non-technical people who just want to use AI safely, with no lock-in to the large labs, by hiring agents and speaking to them. <b>Builders</b>: developers who reuse the platform, Cortex memory, workflow-born skills, the deterministic rules engine and generative UI, inside their own agentic workloads. Which one are you?"},
+    {m:/who (is behind|built|makes|owns)|company|mindlynx/,
+     r:"Helix is built by <b>MindLynx</b>, founded by Jeremy Snyman. If you would like to meet the people behind it, that is worth a proper conversation, shall I get you on the list?", offer:true},
+    {m:/waiting list|what do i get|early access|why sign/,
+     r:"The <b>waiting list</b> is a vote, not a queue. You tell us which products matter to you, and demand decides what we release next. One email when your products open up, nothing else. Shall I sign you up?", offer:true}
+  ];
+
+  function brain(q){
+    var s=q.toLowerCase().trim();
+
+    /* capture flows */
+    if(mode==='ask_name'){
+      if(/^(no|cancel|stop|never mind|nevermind)\b/.test(s)){mode='chat';return "No problem at all. Ask me anything else about Helix.";}
+      lead.name=q.trim().replace(/^(i'?m|my name is|it'?s|call me)\s+/i,'').replace(/[.!]$/,'');
+      mode='ask_email';
+      return "Lovely to meet you, <b>"+esc(lead.name)+"</b>. And your work email?";
+    }
+    if(mode==='ask_email'){
+      if(/^(no|cancel|stop|never mind|nevermind)\b/.test(s)){mode='chat';return "Fair enough, no form today. What else can I tell you about Helix?";}
+      var m=q.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+      if(!m)return "That does not look like an email address. Try again?";
+      lead.email=m[0]; mode='form_shown';
+      setTimeout(showMiniForm,900);
+      return "Perfect. Here is your form, pre-filled. Tick the products you want first, then press the button. The button press is yours to make, not mine; that is rather the point.";
+    }
+
+    /* accepting an offer */
+    if(offered&&/^(yes|yeah|yep|sure|ok|okay|please|go on|alright|why not|sounds good|do it)\b/.test(s)){
+      offered=false; mode='ask_name';
+      return "Brilliant. What is your name?";
+    }
+    offered=false;
+
+    /* explicit signup intent */
+    if(/sign ?(me )?up|signup|join|register|waiting list|early access|add me/.test(s)&&!/why|what|how does/.test(s)){
+      mode='ask_name';
+      return "Happily. What is your name?";
+    }
+
+    /* people, founders, partners — protected, never named beyond the canonical line */
+    if(/justin|co-?founder|founders?|who else|your team|the team behind|\bpartners?\b/.test(s)){
+      offered=true;
+      return "Helix is built by MindLynx, founded by Jeremy Snyman. Beyond that, the people and the partnerships are something we go into properly in a conversation. Shall I get you on the list?";
+    }
+
+    /* deeper-relationship topics */
+    if(DEEP.test(s)){
+      offered=true;
+      return "Good question, and an honest one: that is the kind of detail we go into properly when you set up a conversation. Shall I get you on the list so we can arrange one?";
+    }
+
+    /* knowledge topics */
+    for(var i=0;i<TOPICS.length;i++){
+      if(TOPICS[i].m.test(s)){
+        if(TOPICS[i].offer)offered=true;
+        answered++;
+        var r=TOPICS[i].r;
+        if(!nudged&&answered>=2&&!TOPICS[i].offer&&mode==='chat'){
+          nudged=true; offered=true;
+          r+="<br><br>By the way, since you are clearly curious: want me to put you on the waiting list? It decides what we ship first.";
+        }
+        return r;
+      }
+    }
+
+    /* greetings + courtesy */
+    if(/^(hi|hello|hey|good (morning|afternoon|evening)|yo)\b/.test(s))
+      return "Hello. I am the Helix front-of-house agent. Ask me what Helix is, what the products do, or who it is for. And yes, I can sign you up, though the final click stays yours.";
+    if(/thank/.test(s))return "Pleasure. Anything else about Helix?";
+
+    /* in scope but unmatched vs out of scope */
+    if(/helix|agent|ai|platform|product|os\b|work/.test(s))
+      return "Short version: Helix is the AI-native OS for intelligent work; you hire and retire agents on it, simply and sovereignly. Ask me about a product by name, Cortex, Tachyon, Pulse, Agents, the Marketplace, or Metis Flow, and I will go deeper.";
+    return "That one has got nothing to do with Helix, so I will politely pass. I am good for exactly one subject: what Helix is, what the products do, and who they are for.";
+  }
+
+  function showMiniForm(){
+    var html='<b>Your sign-up</b><div class="mini-form">'
+      +'<input type="text" id="mf-name" value="'+esc(lead.name)+'" placeholder="Name">'
+      +'<input type="email" id="mf-email" value="'+esc(lead.email)+'" placeholder="Work email">'
+      +'<div class="mf-checks">'
+      +['Cortex','Tachyon','Pulse','Helix Agents','Marketplace'].map(function(p){
+        return '<label class="ck"><input type="checkbox" value="'+p+'"> '+p+'</label>';}).join('')
+      +'</div>'
+      +'<button class="btn primary" id="mf-go" type="button">Put me on the list</button></div>';
+    var bubble=el(html,'agent');
+    bubble.querySelector('#mf-go').addEventListener('click',function(){
+      var n=bubble.querySelector('#mf-name').value.trim(), e=bubble.querySelector('#mf-email').value.trim();
+      if(!n||!/.+@.+\..+/.test(e)){agentSay("I still need a name and a real email on that form.");return;}
+      var prods=Array.prototype.map.call(bubble.querySelectorAll('.mf-checks input:checked'),function(c){return c.value;});
+      submitWaitlist({name:n,email:e,products:prods,source:'helix.work/agent'},function(){
+        bubble.querySelector('#mf-go').disabled=true;
+        bubble.querySelector('#mf-go').textContent='Done';
+        mode='chat';
+        agentSay("<b>"+esc(n.split(' ')[0])+", you are on the list.</b> You will hear from us the moment your products open up. Until then, Metis Flow is live and free on GitHub.");
+      });
+    });
+  }
+
+  function ask(q){
+    if(!q.trim())return;
+    el(esc(q),'user');
+    history.push({role:'user',content:q});
+    if(AGENT_ENDPOINT){
+      var t=el('<span class="typing"><i></i><i></i><i></i></span>','agent');
+      fetch(AGENT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:q,history:history})})
+        .then(function(r){return r.json();})
+        .then(function(d){t.innerHTML=d.reply;history.push({role:'agent',content:d.reply});speak(d.reply);})
+        .catch(function(){t.innerHTML="I seem to be offline. The form below works the old-fashioned way.";});
+    }else{
+      var r=brain(q);
+      history.push({role:'agent',content:r});
+      agentSay(r);
+    }
+    input.value='';
+  }
+
+  document.getElementById('send').addEventListener('click',function(){ask(input.value);});
+  input.addEventListener('keydown',function(e){if(e.key==='Enter')ask(input.value);});
+  document.querySelectorAll('#chips .chip').forEach(function(c){
+    c.addEventListener('click',function(){ask(c.textContent);});
+  });
+
+  /* voice: mic in, spoken replies when toggled on */
+  var mic=document.getElementById('mic'), toggle=document.getElementById('voice-toggle');
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(SR){
+    var rec=new SR(); rec.lang='en-GB'; rec.interimResults=false;
+    var listening=false;
+    mic.addEventListener('click',function(){
+      if(listening){rec.stop();return;}
+      listening=true; mic.classList.add('rec'); rec.start();
+    });
+    rec.onresult=function(e){ask(e.results[0][0].transcript);};
+    rec.onend=function(){listening=false;mic.classList.remove('rec');};
+    rec.onerror=function(){listening=false;mic.classList.remove('rec');};
+  }else{mic.style.display='none';}
+  toggle.addEventListener('click',function(){
+    voiceOn=!voiceOn;
+    toggle.textContent='Voice: '+(voiceOn?'on':'off');
+    if(!voiceOn&&window.speechSynthesis)speechSynthesis.cancel();
+  });
+
+  /* opening line */
+  agentSay("Hello. This page is an agent; I am it. Ask me what <b>Helix</b> is, what the products do, or who it is for. If you like what you hear, I can sign you up, though the final button press will always be yours.",true);
+})();
+</script>
+</body>
+</html>
