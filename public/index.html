@@ -758,11 +758,27 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     else if(LIVE.voice)toggle.textContent='Voice: start';
     else toggle.textContent='Voice: '+(voiceOn?'on':'off');
   }
+  async function acquireMic(){
+    var base={channelCount:1,echoCancellation:true,noiseSuppression:true};
+    var stream=await navigator.mediaDevices.getUserMedia({audio:base});
+    var isMobile=(navigator.userAgentData&&navigator.userAgentData.mobile)||/iPhone|iPad|Android|Mobi/i.test(navigator.userAgent);
+    if(isMobile)return stream; /* on a phone the phone mic is the right mic */
+    var label=(stream.getAudioTracks()[0]||{}).label||'';
+    if(!/iphone|ipad|continuity/i.test(label))return stream;
+    /* macOS Continuity has hijacked the default input with a nearby iPhone: use the built-in mic instead */
+    var devs=await navigator.mediaDevices.enumerateDevices();
+    var ins=devs.filter(function(d){return d.kind==='audioinput'&&d.deviceId&&d.deviceId!=='default';});
+    var builtin=ins.find(function(d){return /built-?in|macbook|internal/i.test(d.label);})
+             ||ins.find(function(d){return !/iphone|ipad|continuity/i.test(d.label);});
+    if(!builtin)return stream;
+    stream.getTracks().forEach(function(t){t.stop();});
+    return navigator.mediaDevices.getUserMedia({audio:Object.assign({deviceId:{exact:builtin.deviceId}},base)});
+  }
   async function startLive(){
     mic.classList.add('rec');
     toggle.textContent='Voice: connecting…';
     /* mic permission first: a denial must not burn a rate-limited token mint */
-    live.stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+    live.stream=await acquireMic();
     var r=await fetch('/api/voice/token',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
     if(!r.ok)throw new Error('mint '+r.status);
     var d=await r.json();
