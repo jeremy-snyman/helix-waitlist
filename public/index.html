@@ -139,6 +139,14 @@
   .success{border:1px solid var(--mint);background:var(--panel);padding:22px;max-width:760px;display:none}
   .success b{color:var(--mint)}
 
+  .hp{position:absolute;left:-9999px;top:-9999px}
+  label.consent{display:flex;gap:10px;align-items:flex-start;font-family:'Archivo',sans-serif;font-size:13.5px;letter-spacing:0;text-transform:none;color:var(--muted);cursor:pointer}
+  label.consent input{accent-color:var(--lime);width:15px;height:15px;flex:none;margin-top:2px}
+  label.consent a{color:var(--text)}
+  .privacy-box{border:1px solid var(--line);background:var(--panel);padding:28px;display:grid;gap:12px;max-width:860px}
+  .privacy-box p{color:var(--muted);font-size:14.5px}
+  .privacy-box b{color:var(--text)}
+
   footer{padding:44px 0 60px}
   .foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;color:var(--mono);font-family:'Spline Sans Mono',monospace;font-size:12.5px;letter-spacing:.06em}
   .foot a{color:var(--muted);text-decoration:none}
@@ -340,9 +348,16 @@
         <label for="f-use">What would you point it at? (optional)</label>
         <textarea id="f-use" name="use_case" placeholder="The job you would give it on day one"></textarea>
       </div>
+      <div class="hp" aria-hidden="true">
+        <label for="f-website">Website</label>
+        <input type="text" id="f-website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+      <div class="full">
+        <label class="consent"><input type="checkbox" name="consent" required> <span>Keep my details and email me about early access. Consent, not spam; see the <a href="#privacy">privacy notice</a>.</span></label>
+      </div>
       <div class="full">
         <button type="submit" class="btn primary">Put me on the list</button>
-        <p class="form-note">No spam, no sharing. One email when your products open up.</p>
+        <p class="form-note" id="wl-note">No spam, no sharing. One email when your products open up.</p>
       </div>
     </form>
     <div class="success" id="wl-success">
@@ -352,17 +367,34 @@
   </div>
 </section>
 
+<section id="privacy">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>Privacy notice</h2>
+      <p>A company selling sovereignty does not trade your details. Short, in plain words.</p>
+    </div>
+    <div class="privacy-box">
+      <p><b>What we collect.</b> Name, work email, company (optional), which products interest you, and anything you write about your use case. Signing up through the chat collects the same details, nothing more.</p>
+      <p><b>Why.</b> To email you about early access to the products you chose. That is the whole purpose. The lawful basis is your consent, given by the checkbox on the form.</p>
+      <p><b>Where it lives.</b> On infrastructure MindLynx controls. It is never sold, never shared with third parties, and never used to train anyone's model.</p>
+      <p><b>How long.</b> Until the products reach general release, or 12 months after we last hear from you, whichever comes sooner. Then it is deleted.</p>
+      <p><b>Your rights.</b> Email <a href="mailto:hello@helix.work">hello@helix.work</a> with "remove me" and your record is deleted. You can ask what we hold about you the same way. No cookies are set on this page.</p>
+      <p><b>Voice.</b> The voice conversation is optional and streams audio to our speech provider only while the microphone is on. The page works fully by text.</p>
+    </div>
+  </div>
+</section>
+
 <footer>
   <div class="wrap foot">
     <span>&copy; MindLynx &middot; Helix is a MindLynx product</span>
-    <span><a href="mailto:hello@helix.work">hello@helix.work</a> &nbsp;&middot;&nbsp; <a href="https://github.com/REPLACE-ME" target="_blank" rel="noopener">GitHub</a></span>
+    <span><a href="#privacy">Privacy</a> &nbsp;&middot;&nbsp; <a href="mailto:hello@helix.work">hello@helix.work</a> &nbsp;&middot;&nbsp; <a href="https://github.com/REPLACE-ME" target="_blank" rel="noopener">GitHub</a></span>
   </div>
 </footer>
 
 <script>
 /* =============================== CONFIG =============================== */
-var FORM_ENDPOINT="";   /* Formspree / Tally / own API for waiting-list JSON POSTs. Empty = demo mode. */
-var AGENT_ENDPOINT="";  /* Live agent API: POST {message, history} -> {reply}. Empty = scripted demo brain. */
+var FORM_ENDPOINT="/api/waitlist";  /* Own API for waiting-list JSON POSTs. Empty = demo mode. */
+var AGENT_ENDPOINT="";              /* Live agent API: POST {message, history} -> {reply}. Empty = scripted demo brain. */
 
 /* ---- riseField: drifting dots, density rising to the right ---- */
 (function(){
@@ -398,10 +430,11 @@ function submitWaitlist(payload,onDone){
   payload.source=payload.source||'helix.work';
   if(FORM_ENDPOINT){
     fetch(FORM_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-      .then(onDone).catch(function(){console.error('Waitlist POST failed',payload);onDone();});
+      .then(function(r){onDone(r.ok);})
+      .catch(function(){console.error('Waitlist POST failed');onDone(false);});
   }else{
     console.log('Waitlist signup (demo mode, no endpoint set):',payload);
-    onDone();
+    onDone(true);
   }
 }
 
@@ -421,12 +454,20 @@ document.querySelectorAll('#wl-checks input').forEach(function(cb){
 document.getElementById('wl-form').addEventListener('submit',function(e){
   e.preventDefault();
   var f=e.target;
-  if(!f.name.value.trim()||!/.+@.+\..+/.test(f.email.value)){f.reportValidity&&f.reportValidity();return;}
+  if(!f.name.value.trim()||!/.+@.+\..+/.test(f.email.value)||!f.consent.checked){f.reportValidity&&f.reportValidity();return;}
   submitWaitlist({
     name:f.name.value.trim(),email:f.email.value.trim(),company:f.company.value.trim(),
     products:Array.prototype.map.call(document.querySelectorAll('#wl-checks input:checked'),function(c){return c.value;}),
-    use_case:f.use_case.value.trim()
-  },function(){
+    use_case:f.use_case.value.trim(),
+    consent:true,
+    website:f.website.value
+  },function(ok){
+    if(!ok){
+      var note=document.getElementById('wl-note');
+      note.textContent='That did not go through. Give it another try, or email hello@helix.work.';
+      note.style.color='var(--pink)';
+      return;
+    }
     f.style.display='none';
     document.getElementById('wl-success').style.display='block';
   });
@@ -570,13 +611,16 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
       +['Cortex','Tachyon','Pulse','Helix Agents','Marketplace'].map(function(p){
         return '<label class="ck"><input type="checkbox" value="'+p+'"> '+p+'</label>';}).join('')
       +'</div>'
+      +'<label class="consent"><input type="checkbox" id="mf-consent"> <span>Keep my details and email me about early access (<a href="#privacy">privacy notice</a>)</span></label>'
       +'<button class="btn primary" id="mf-go" type="button">Put me on the list</button></div>';
     var bubble=el(html,'agent');
     bubble.querySelector('#mf-go').addEventListener('click',function(){
       var n=bubble.querySelector('#mf-name').value.trim(), e=bubble.querySelector('#mf-email').value.trim();
       if(!n||!/.+@.+\..+/.test(e)){agentSay("I still need a name and a real email on that form.");return;}
+      if(!bubble.querySelector('#mf-consent').checked){agentSay("I need the consent box ticked before I can add you. The privacy notice link is right there on the form.");return;}
       var prods=Array.prototype.map.call(bubble.querySelectorAll('.mf-checks input:checked'),function(c){return c.value;});
-      submitWaitlist({name:n,email:e,products:prods,source:'helix.work/agent'},function(){
+      submitWaitlist({name:n,email:e,products:prods,consent:true,source:'helix.work/agent'},function(ok){
+        if(!ok){agentSay("That did not save. Give the button one more press, or use the form further down the page.");return;}
         bubble.querySelector('#mf-go').disabled=true;
         bubble.querySelector('#mf-go').textContent='Done';
         mode='chat';

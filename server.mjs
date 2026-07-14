@@ -125,8 +125,9 @@ function readBody(req) {
     req.on('data', (c) => {
       size += c.length;
       if (size > BODY_CAP) {
+        req.removeAllListeners('data');
+        req.resume(); // drain so the 413 response can still be delivered
         reject(Object.assign(new Error('Payload too large'), { status: 413 }));
-        req.destroy();
       } else chunks.push(c);
     });
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
