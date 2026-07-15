@@ -129,7 +129,7 @@ OUTPUT RULES
 const SIGNUP_TOOL = {
   functionDeclarations: [{
     name: 'show_signup_form',
-    description: 'Render the pre-filled waiting-list sign-up form in the chat. Call ONLY after the visitor has explicitly stated both their name and their email address in this conversation. Never call it with a guessed, assumed or example value; if you do not have a real email yet, ask for it instead. Render-only: the visitor reviews the form and presses submit themselves.',
+    description: 'Render the pre-filled waiting-list sign-up form in the chat. Call ONLY after the visitor has explicitly stated both their name and their email address in this conversation. Never call it with a guessed, assumed or example value; if you do not have a real email yet, ask for it instead. If the visitor asks to change or correct a detail on the form, call this tool again with the corrected values and a fresh form replaces the old one. Render-only: the visitor reviews the form and presses submit themselves.',
     parameters: {
       type: 'OBJECT',
       properties: {

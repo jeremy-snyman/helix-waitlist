@@ -642,10 +642,15 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     return "That one has got nothing to do with Helix, so I will politely pass. I am good for exactly one subject: what Helix is, what the products do, and who they are for.";
   }
 
+  var lastForm=null;
   function showMiniForm(pre){
     pre=pre||[];
     /* never pre-fill fabricated values: a placeholder-looking email renders blank for the human to type */
     if(/example|placeholder|test@|@test\.|your.?email|@email\./i.test(lead.email))lead.email='';
+    if(lastForm){ /* a corrected form supersedes the old one */
+      var oldGo=lastForm.querySelector('#mf-go');
+      if(oldGo&&!oldGo.disabled){oldGo.disabled=true;oldGo.textContent='Replaced below';}
+    }
     var html='<b>Your sign-up</b><div class="mini-form">'
       +'<input type="text" id="mf-name" value="'+esc(lead.name)+'" placeholder="Name">'
       +'<input type="email" id="mf-email" value="'+esc(lead.email)+'" placeholder="Work email">'
@@ -656,6 +661,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
       +'<label class="consent"><input type="checkbox" id="mf-consent"> <span>Keep my details and email me about early access (<a href="#privacy">privacy notice</a>)</span></label>'
       +'<button class="btn primary" id="mf-go" type="button">Put me on the list</button></div>';
     var bubble=el(html,'agent');
+    lastForm=bubble;
     bubble.querySelector('#mf-go').addEventListener('click',function(){
       var n=bubble.querySelector('#mf-name').value.trim(), e=bubble.querySelector('#mf-email').value.trim();
       if(!n||!/.+@.+\..+/.test(e)){agentSay("I still need a name and a real email on that form.");return;}
@@ -730,7 +736,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     for(var j=0;j<i16.length;j++)f32[j]=i16[j]/32768;
     var ab=live.ctxOut.createBuffer(1,f32.length,24000);
     ab.getChannelData(0).set(f32);
-    var s=live.ctxOut.createBufferSource(); s.buffer=ab; s.connect(live.ctxOut.destination);
+    var s=live.ctxOut.createBufferSource(); s.buffer=ab; s.connect(live.dest||live.ctxOut.destination);
     live.cursor=Math.max(live.ctxOut.currentTime,live.cursor);
     s.start(live.cursor); live.cursor+=ab.duration;
     live.sources.push(s);
@@ -755,7 +761,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     if(msg.data)playPcm(msg.data);
     var sc=msg.serverContent;
     if(sc){
-      if(sc.interrupted)stopPlayback();
+      if(sc.interrupted){vlog('interrupted',{});stopPlayback();}
       if(sc.inputTranscription&&sc.inputTranscription.text)transcript('user',sc.inputTranscription.text);
       if(sc.outputTranscription&&sc.outputTranscription.text)transcript('agent',sc.outputTranscription.text);
       if(sc.turnComplete)finaliseTranscripts();
@@ -778,6 +784,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     finaliseTranscripts();
     if(live.session){var s=live.session;live.session=null;try{s.close();}catch(e){}}
     if(live.stream){live.stream.getTracks().forEach(function(t){t.stop();});live.stream=null;}
+    if(live.audioEl){try{live.audioEl.pause();}catch(e){}live.audioEl=null;live.dest=null;}
     if(live.ctxIn){live.ctxIn.close().catch(function(){});live.ctxIn=null;}
     if(live.ctxOut){live.ctxOut.close().catch(function(){});live.ctxOut=null;}
     mic.classList.remove('rec');
@@ -811,6 +818,12 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     /* create the output context synchronously inside the click: created after the awaits,
        Chrome may treat the gesture as expired and start it suspended = silent Vera */
     live.ctxOut=new AudioContext({sampleRate:24000});
+    /* play through an <audio> element: Chrome's echo canceller ignores raw Web Audio output,
+       so Vera's voice loops back into the mic and interrupts herself mid-sentence */
+    live.dest=live.ctxOut.createMediaStreamDestination();
+    live.audioEl=document.createElement('audio');
+    live.audioEl.srcObject=live.dest.stream;
+    live.audioEl.play().catch(function(){});
     live.audioLogged=false;
     live.connBub=el('<span class="typing"><i></i><i></i><i></i></span>&nbsp; Connecting you to Vera&hellip;','agent');
     vlog('start',{secure:window.isSecureContext,ctxOut:live.ctxOut.state});
