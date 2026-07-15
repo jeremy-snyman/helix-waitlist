@@ -803,6 +803,9 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
   async function startLive(){
     mic.classList.add('rec');
     toggle.textContent='Voice: connecting…';
+    /* create the output context synchronously inside the click: created after the awaits,
+       Chrome may treat the gesture as expired and start it suspended = silent Vera */
+    live.ctxOut=new AudioContext({sampleRate:24000});
     live.connBub=el('Connecting you to Vera…','agent');
     if(window.speechSynthesis){ /* bridge the cold start: a different voice hands over to Vera */
       live.introTts=true;
@@ -815,7 +818,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     if(!r.ok)throw new Error('mint '+r.status);
     var d=await r.json();
     var mod=await import(GENAI_CDN);
-    live.ctxOut=new AudioContext({sampleRate:24000});
+    if(live.ctxOut.state==='suspended')live.ctxOut.resume().catch(function(){});
     var ai=new mod.GoogleGenAI({apiKey:d.token,httpOptions:{apiVersion:'v1alpha'}});
     live.session=await ai.live.connect({
       model:d.model,
