@@ -644,6 +644,8 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
 
   function showMiniForm(pre){
     pre=pre||[];
+    /* never pre-fill fabricated values: a placeholder-looking email renders blank for the human to type */
+    if(/example|placeholder|test@|@test\.|your.?email|@email\./i.test(lead.email))lead.email='';
     var html='<b>Your sign-up</b><div class="mini-form">'
       +'<input type="text" id="mf-name" value="'+esc(lead.name)+'" placeholder="Name">'
       +'<input type="email" id="mf-email" value="'+esc(lead.email)+'" placeholder="Work email">'

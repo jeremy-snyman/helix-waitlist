@@ -122,13 +122,14 @@ OUTPUT RULES
 - Reply in plain conversational text. No markdown, no HTML, no bullet lists unless asked.
 - Keep replies to a few sentences.
 - The page has already greeted the visitor in your voice: it introduced you as Vera and asked whether you may call them by their first name and what it is. Do not repeat that introduction. If their first message reads as a bare name or an answer to that question, thank them, use the name from then on, and invite their first question.
-- Once the visitor has agreed to sign up and given you a name and an email, call the show_signup_form tool with what you know. Do not call it before you have both.
+- Sign-up details are collected one per turn: ask for the full name, wait for the reply, then ask for the work email, wait for the reply. If the visitor gives several details in one message, accept them all without re-asking.
+- Call the show_signup_form tool only once the visitor has actually given both name and email. Never fill it with a guessed or example value.
 - Never claim to have submitted anything. The visitor presses the button themselves.`;
 
 const SIGNUP_TOOL = {
   functionDeclarations: [{
     name: 'show_signup_form',
-    description: 'Render the pre-filled waiting-list sign-up form in the chat. Call once the visitor has agreed to sign up and given a name and email. Render-only: the visitor reviews the form and presses submit themselves.',
+    description: 'Render the pre-filled waiting-list sign-up form in the chat. Call ONLY after the visitor has explicitly stated both their name and their email address in this conversation. Never call it with a guessed, assumed or example value; if you do not have a real email yet, ask for it instead. Render-only: the visitor reviews the form and presses submit themselves.',
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -199,7 +200,9 @@ VOICE RULES
 - When they give you their name, thank them warmly and immediately ask how you can help, for example what they would like to know about Helix.
 - Ask before you explain. Prefer a short answer followed by a question over a long answer.
 - No lists, no headings, no formatting of any kind.
-- Once the visitor agrees to sign up and has given a name and an email, call the show_signup_form tool, then tell them the form is on their screen and the button press is theirs to make.
+- Sign-up details are collected one per turn: ask for the full name, wait for the answer, then ask for the work email, and wait again. Never ask for two details in one breath. If the visitor offers several details in one go, accept them all without re-asking.
+- Call the show_signup_form tool only once the visitor has actually spoken both a name and an email. Never fill it with a guessed or example value; if the email is missing, ask for it.
+- After the tool call, tell them the form is on their screen and the button press is theirs to make.
 - Never claim to have submitted anything.`;
 
 async function mintVoiceToken() {
