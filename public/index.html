@@ -717,6 +717,7 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
   function b64FromBuf(buf){var b=new Uint8Array(buf),s='';for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
   function playPcm(b64){
     if(!live.ctxOut)return;
+    if(live.introTts){live.introTts=false;if(window.speechSynthesis)speechSynthesis.cancel();} /* Vera is speaking now */
     var bin=atob(b64), bytes=new Uint8Array(bin.length);
     for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
     var i16=new Int16Array(bytes.buffer), f32=new Float32Array(i16.length);
@@ -766,6 +767,8 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
   }
   function stopLive(notice){
     if(live.timer){clearTimeout(live.timer);live.timer=null;}
+    if(live.introTts){live.introTts=false;if(window.speechSynthesis)speechSynthesis.cancel();}
+    if(live.connBub){live.connBub.textContent='Voice did not connect this time.';live.connBub=null;}
     stopPlayback();
     finaliseTranscripts();
     if(live.session){var s=live.session;live.session=null;try{s.close();}catch(e){}}
@@ -800,6 +803,12 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
   async function startLive(){
     mic.classList.add('rec');
     toggle.textContent='Voice: connecting…';
+    live.connBub=el('Connecting you to Vera…','agent');
+    if(window.speechSynthesis){ /* bridge the cold start: a different voice hands over to Vera */
+      live.introTts=true;
+      var u=new SpeechSynthesisUtterance('Connecting you to Vera.');
+      u.lang='en-GB'; speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }
     /* mic permission first: a denial must not burn a rate-limited token mint */
     live.stream=await acquireMic();
     var r=await fetch('/api/voice/token',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
@@ -829,6 +838,9 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     };
     srcNode.connect(node);
     refreshVoiceUi();
+    if(live.connBub){live.connBub.textContent='You are through to Vera.';live.connBub=null;}
+    /* nudge Vera to open the conversation herself: one short greeting, then wait */
+    try{live.session.sendClientContent({turns:[{role:'user',parts:[{text:'(The visitor has just connected by voice. Greet them in one short sentence, ask whether you may use their first name and what it is, then wait.)'}]}],turnComplete:true});}catch(e){}
     live.timer=setTimeout(function(){stopLive('Voice session ended (five minute cap). Tap the mic to carry on.');},300000);
   }
 
