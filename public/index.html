@@ -802,13 +802,15 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     var isMobile=(navigator.userAgentData&&navigator.userAgentData.mobile)||/iPhone|iPad|Android|Mobi/i.test(navigator.userAgent);
     if(isMobile)return stream; /* on a phone the phone mic is the right mic */
     var label=(stream.getAudioTracks()[0]||{}).label||'';
-    if(!/iphone|ipad|continuity/i.test(label))return stream;
-    /* macOS Continuity has hijacked the default input with a nearby iPhone: use the built-in mic instead */
+    if(/headphone|headset|airpod|earbud/i.test(label))return stream; /* a worn mic is the best mic */
+    if(!/phone|ipad|continuity/i.test(label))return stream; /* "phone" catches renamed iPhones too, e.g. "jPhone" */
+    /* macOS Continuity has hijacked the default input with a nearby phone: use the built-in mic instead */
     var devs=await navigator.mediaDevices.enumerateDevices();
     var ins=devs.filter(function(d){return d.kind==='audioinput'&&d.deviceId&&d.deviceId!=='default';});
     var builtin=ins.find(function(d){return /built-?in|macbook|internal/i.test(d.label);})
-             ||ins.find(function(d){return !/iphone|ipad|continuity/i.test(d.label);});
+             ||ins.find(function(d){return !/phone|ipad|continuity/i.test(d.label);});
     if(!builtin)return stream;
+    vlog('mic-switch',{from:label,to:builtin.label});
     stream.getTracks().forEach(function(t){t.stop();});
     return navigator.mediaDevices.getUserMedia({audio:Object.assign({deviceId:{exact:builtin.deviceId}},base)});
   }
@@ -844,7 +846,13 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
       callbacks:{
         onmessage:onLiveMessage,
         onerror:function(e){vlog('ws-error',{msg:String((e&&e.message)||e).slice(0,200)});stopLive('Voice hit a snag. Press Voice to try again, or just type.');},
-        onclose:function(e){vlog('ws-close',{code:e&&e.code,reason:String((e&&e.reason)||'').slice(0,120)});if(live.session)stopLive();}
+        onclose:function(e){
+          var reason=String((e&&e.reason)||'');
+          vlog('ws-close',{code:e&&e.code,reason:reason.slice(0,120)});
+          if(live.session)stopLive(/exhaust|quota/i.test(reason)
+            ?'Vera’s voice is over its usage limit for the moment. Give it a minute and press Voice again, or just type.'
+            :undefined);
+        }
       }
     });
     vlog('connected',{});
