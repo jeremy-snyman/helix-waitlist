@@ -37,6 +37,7 @@ Everything runs on a single Node >= 22 instance by design: the rate limiter is a
 | `POST /api/waitlist` | capture | the `FORM_ENDPOINT` seam |
 | `POST /api/agent` | text agent | the `AGENT_ENDPOINT` seam |
 | `POST /api/voice/token` | voice mint | ephemeral token for Gemini Live |
+| `POST /api/log` | voice telemetry | client logs each voice-session stage (start, mic, mint, cdn, connected, first-audio, ws-error/close, fail) to `data/voicelog.ndjson` and the server console — the debugging eye into a visitor's browser |
 | anything else | 404 JSON | no generic file server, so no path-traversal surface |
 
 Request bodies are read with a 64 KB cap (413 above it), parsed as JSON (400 on garbage), and every POST route rate-limits before doing any work.
@@ -97,7 +98,7 @@ A `functionCall` part becomes `action`; accompanying text becomes `reply` (canne
 - **Tool call over voice**: `toolCall.functionCalls` -> the shared `showMiniForm(args)` -> `sendToolResponse` acknowledging the form is shown and awaiting a human click.
 - **Lifecycle**: click to start (mint -> connect -> recording UI), click again or any error to stop (close session, stop tracks, close audio contexts). Client hard stop at 5 minutes with a chat notice; the 10-minute token expiry is the server-side backstop; `goAway` handled as a clean stop.
 
-**Degradation ladder (FR-21)**: Gemini Live -> Web Speech API (`SpeechRecognition` in, `speechSynthesis` out, the scaffold's original code) -> mic hidden. Rung chosen at load from `/api/health` plus feature detection, re-checked downwards on any failure.
+**Degradation ladder (FR-21)**: Gemini Live -> Web Speech API (`SpeechRecognition` in, `speechSynthesis` out, the scaffold's original code) -> mic hidden. Rung chosen at load from `/api/health` plus feature detection. Deliberate asymmetry (owner decision, 15 Jul 2026): when the health check says Live voice exists, a failed Live connection NEVER downgrades to the browser voice (it is off-brand); the page shows a retry message instead. Web Speech is used only in keyless demo mode. The connecting state is a visual chat indicator, not a spoken browser-TTS line, for the same reason.
 
 ## 6. Security posture (NFR-8)
 

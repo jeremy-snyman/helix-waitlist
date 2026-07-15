@@ -713,11 +713,15 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
   var GENAI_CDN='https://cdn.jsdelivr.net/npm/@google/genai@2.11.0/+esm'; /* pinned; keep in step with package.json */
   var WORKLET_SRC="class P extends AudioWorkletProcessor{process(inputs){var ch=inputs[0][0];if(ch)this.port.postMessage(ch.slice(0));return true;}}registerProcessor('pcm-forwarder',P);";
   var live={session:null,ctxIn:null,ctxOut:null,stream:null,sources:[],cursor:0,timer:null,userBub:null,agentBub:null};
+  function vlog(stage,detail){
+    console.log('[voice]',stage,detail||'');
+    try{fetch('/api/log',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage:stage,detail:detail||{}})});}catch(e){}
+  }
 
   function b64FromBuf(buf){var b=new Uint8Array(buf),s='';for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
   function playPcm(b64){
     if(!live.ctxOut)return;
-    if(live.introTts){live.introTts=false;if(window.speechSynthesis)speechSynthesis.cancel();} /* Vera is speaking now */
+    if(!live.audioLogged){live.audioLogged=true;vlog('first-audio',{ctxOut:live.ctxOut.state,bytes:b64.length});}
     var bin=atob(b64), bytes=new Uint8Array(bin.length);
     for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
     var i16=new Int16Array(bytes.buffer), f32=new Float32Array(i16.length);
@@ -767,7 +771,6 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
   }
   function stopLive(notice){
     if(live.timer){clearTimeout(live.timer);live.timer=null;}
-    if(live.introTts){live.introTts=false;if(window.speechSynthesis)speechSynthesis.cancel();}
     if(live.connBub){live.connBub.textContent='Voice did not connect this time.';live.connBub=null;}
     stopPlayback();
     finaliseTranscripts();
@@ -806,29 +809,30 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     /* create the output context synchronously inside the click: created after the awaits,
        Chrome may treat the gesture as expired and start it suspended = silent Vera */
     live.ctxOut=new AudioContext({sampleRate:24000});
-    live.connBub=el('Connecting you to Vera…','agent');
-    if(window.speechSynthesis){ /* bridge the cold start: a different voice hands over to Vera */
-      live.introTts=true;
-      var u=new SpeechSynthesisUtterance('Connecting you to Vera.');
-      u.lang='en-GB'; speechSynthesis.cancel(); speechSynthesis.speak(u);
-    }
+    live.audioLogged=false;
+    live.connBub=el('<span class="typing"><i></i><i></i><i></i></span>&nbsp; Connecting you to Vera&hellip;','agent');
+    vlog('start',{secure:window.isSecureContext,ctxOut:live.ctxOut.state});
     /* mic permission first: a denial must not burn a rate-limited token mint */
     live.stream=await acquireMic();
+    vlog('mic-ok',{device:(live.stream.getAudioTracks()[0]||{}).label||'unknown'});
     var r=await fetch('/api/voice/token',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    if(!r.ok)throw new Error('mint '+r.status);
+    if(!r.ok){vlog('mint-fail',{status:r.status});throw new Error('mint '+r.status);}
     var d=await r.json();
+    vlog('mint-ok',{model:d.model});
     var mod=await import(GENAI_CDN);
-    if(live.ctxOut.state==='suspended')live.ctxOut.resume().catch(function(){});
+    vlog('cdn-ok',{});
+    if(live.ctxOut.state==='suspended'){vlog('ctx-suspended-resuming',{});live.ctxOut.resume().catch(function(){});}
     var ai=new mod.GoogleGenAI({apiKey:d.token,httpOptions:{apiVersion:'v1alpha'}});
     live.session=await ai.live.connect({
       model:d.model,
       config:{responseModalities:['AUDIO']}, /* everything else is locked in the token */
       callbacks:{
         onmessage:onLiveMessage,
-        onerror:function(){stopLive('Voice hit a snag. Tap the mic to try again, or just type.');},
-        onclose:function(){if(live.session)stopLive();}
+        onerror:function(e){vlog('ws-error',{msg:String((e&&e.message)||e).slice(0,200)});stopLive('Voice hit a snag. Press Voice to try again, or just type.');},
+        onclose:function(e){vlog('ws-close',{code:e&&e.code,reason:String((e&&e.reason)||'').slice(0,120)});if(live.session)stopLive();}
       }
     });
+    vlog('connected',{});
     live.ctxIn=new AudioContext({sampleRate:16000});
     var srcNode=live.ctxIn.createMediaStreamSource(live.stream);
     await live.ctxIn.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SRC],{type:'text/javascript'})));
@@ -864,17 +868,15 @@ document.getElementById('wl-form').addEventListener('submit',function(e){
     if(live.session){stopLive();return;}
     if(LIVE.voice&&window.isSecureContext){
       startLive().catch(function(err){
-        console.warn('Gemini Live unavailable, falling back',err);
+        console.warn('Gemini Live failed',err);
+        vlog('fail',{name:err&&err.name,msg:String((err&&err.message)||err).slice(0,200)});
         stopLive();
         if(err&&err.name==='NotAllowedError'){
           agentSay('I could not get microphone access. Allow the microphone for this page and press Voice again, or just type.',true);
           return;
         }
-        LIVE.voice=false;
-        mic.classList.remove('live');
-        refreshVoiceUi();
-        if(rec)agentSay('Real-time voice is not available just now, so I have switched to basic browser speech. Tap the mic and talk.',true);
-        else{mic.style.display='none';agentSay('Voice is not available in this browser just now, but typing works perfectly.',true);}
+        /* no downgrade to the browser voice when the real one should exist: offer a retry instead */
+        agentSay('Vera’s voice line dropped while connecting. Press Voice to try again, or just type.',true);
       });
     }else{
       startSR();

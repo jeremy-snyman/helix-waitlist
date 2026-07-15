@@ -31,6 +31,7 @@ const LIMITS = {
   capture: { max: 10, windowMs: 60_000 },
   chat: { max: 20, windowMs: 60_000 },
   voice: { max: 5, windowMs: 600_000 },
+  log: { max: 60, windowMs: 60_000 },
 };
 const hits = new Map();
 setInterval(() => {
@@ -341,6 +342,22 @@ async function handleVoiceToken(req, res) {
   }
 }
 
+async function handleLog(req, res) {
+  const ip = clientIp(req);
+  const limited = rateLimit('log', ip);
+  if (!limited.ok) return json(res, 429, { ok: false }, { 'Retry-After': String(limited.retryAfter) });
+  const body = await readJson(req);
+  const entry = {
+    ts: new Date().toISOString(),
+    ip,
+    stage: clean(body.stage, 40),
+    detail: clean(typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail ?? {}), 500),
+  };
+  console.log('[voice]', entry.ts, entry.stage, entry.detail);
+  appendRecord('voicelog.ndjson', entry).catch(() => {});
+  return json(res, 200, { ok: true });
+}
+
 export const server = createServer(async (req, res) => {
   try {
     const path = new URL(req.url, 'http://local').pathname;
@@ -351,6 +368,7 @@ export const server = createServer(async (req, res) => {
     if (req.method === 'POST' && path === '/api/waitlist') return await handleWaitlist(req, res);
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);
     if (req.method === 'POST' && path === '/api/voice/token') return await handleVoiceToken(req, res);
+    if (req.method === 'POST' && path === '/api/log') return await handleLog(req, res);
     return json(res, 404, { ok: false, error: 'Not found' });
   } catch (err) {
     return json(res, err.status || 500, { ok: false, error: err.status ? err.message : 'Server error' });
