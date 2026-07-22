@@ -23,6 +23,8 @@ Stand up **helix.work** as the public early-access front door for Helix. It has 
 
 **In scope:** the public marketing page, the waiting-list capture, the Ask Helix conversational agent, and voice interaction.
 
+**Added 22 July 2026 — Albion.** The same server also hosts **albion.helix.work**: a static page for Albion, Britain's sovereign compound model (part of Helix, credited to MindLynx only), with two capture forms — an organisation waitlist (email, organisation, sector, sovereignty requirement) and a paid contributor register (name, email, sector, years, role). Both post to `/api/albion/*` routes with the same validation, honeypot, rate-limit and consent standards as the Helix capture, into their own NDJSON files. Site routing is by Host header; `/albion` serves the page on any host. The Helix page cross-links (nav + band), and Vera carries a short approved Albion blurb (guardrails doc section 5a). No agent or voice on the Albion page in this phase.
+
 **Out of scope:** the Helix platform and product apps, user accounts and authentication, billing, and any customer-facing agent execution beyond the front-of-house conversation.
 
 ---

@@ -17,12 +17,14 @@ One static HTML page, one Node process, one data directory. No build step, no fr
 ```
 helix-website/
   server.mjs              all server code (node:http)
-  public/index.html       the entire page: markup, styles, scripts, scripted brain
+  public/index.html       the entire Helix page: markup, styles, scripts, scripted brain
+  public/albion.html      the Albion page (albion.helix.work): waitlist + contributor register, static forms only
   context-pack.md         the agent's system instruction (extract of the guardrails doc §3-10)
   docs/                   requirements, guardrails, this document
   scripts/counts.mjs      per-product demand tally (the release-order metric)
   test/api.test.mjs       node --test: validation, honeypot, redact, store, HTTP routes
-  data/                   runtime only, gitignored: waitlist.ndjson, redactions.ndjson
+  data/                   runtime only, gitignored: waitlist.ndjson, redactions.ndjson,
+                          voicelog.ndjson, albion-waitlist.ndjson, albion-contributors.ndjson
   .env(.example)          all keys optional; empty env = demo mode
 ```
 
@@ -30,14 +32,19 @@ Everything runs on a single Node >= 22 instance by design: the rate limiter is a
 
 ## 2. Request routing (`server.mjs`)
 
+One process serves two sites by Host header: a host beginning `albion.` (albion.helix.work) gets `public/albion.html` at `/`; every other host (waitlist.helix.work, localhost) gets `public/index.html`. The path `/albion` serves the Albion page on any host, which is what local testing and the Helix page's cross-links use; DNS and the edge canonicalise to the subdomain in production.
+
 | Route | Handler | Notes |
 |---|---|---|
-| `GET /`, `/index.html` | static | page cached in memory after first read; CSP + nosniff + referrer headers |
+| `GET /`, `/index.html` | static | Helix page, or the Albion page on an `albion.` host; pages cached in memory after first read; CSP + nosniff + referrer headers |
+| `GET /albion`, `/albion.html` | static | the Albion page on any host |
 | `GET /api/health` | health | `{ok, agent, voice}` — booleans keyed off `GEMINI_API_KEY`; the page reads this once at load to pick its ladder rungs |
 | `POST /api/waitlist` | capture | the `FORM_ENDPOINT` seam |
 | `POST /api/agent` | text agent | the `AGENT_ENDPOINT` seam |
 | `POST /api/voice/token` | voice mint | ephemeral token for Gemini Live |
 | `POST /api/log` | voice telemetry | client logs each voice-session stage (start, mic, mint, cdn, connected, first-audio, ws-error/close, fail) to `data/voicelog.ndjson` and the server console — the debugging eye into a visitor's browser |
+| `POST /api/albion/waitlist` | capture | Albion organisation waitlist (email, organisation, sector whitelist, sovereignty y/n/not sure, consent, utm) -> `data/albion-waitlist.ndjson`; same rate class, honeypot and consent rules as the Helix capture |
+| `POST /api/albion/contributor` | capture | Albion contributor register (name, email, sector, years whitelist, role, consent, utm) -> `data/albion-contributors.ndjson` |
 | anything else | 404 JSON | no generic file server, so no path-traversal surface |
 
 Request bodies are read with a 64 KB cap (413 above it), parsed as JSON (400 on garbage), and every POST route rate-limits before doing any work.
@@ -118,7 +125,7 @@ A `functionCall` part becomes `action`; accompanying text becomes `reply` (canne
 
 ## 8. Deployment
 
-- Any host that runs `node server.mjs` (Node >= 22) with a persistent volume at `data/` and HTTPS at the edge. Single instance.
+- Any host that runs `node server.mjs` (Node >= 22) with a persistent volume at `data/` and HTTPS at the edge. Single instance. Both subdomains (waitlist.helix.work, albion.helix.work) point at the same instance; the server routes by Host header.
 - `PORT` and `DATA_DIR` via environment. With no `GEMINI_API_KEY` the site is fully functional in demo mode, so the key can be added after DNS cutover.
 - Back up `data/` — it is the waiting list.
 

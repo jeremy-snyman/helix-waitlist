@@ -1,10 +1,16 @@
 /**
  * helix.work — single-file server. Zero dependencies, plain node:http.
- * Serves the static page and four API routes:
- *   GET  /api/health       which integrations are live (page picks its ladder rungs)
- *   POST /api/waitlist     signup capture -> data/waitlist.ndjson
- *   POST /api/agent        Ask Helix text agent (Gemini) -> {reply, action?}; 503 without a key
- *   POST /api/voice/token  Gemini Live ephemeral token mint; 503 without a key
+ * Serves two sites off one process by Host header:
+ *   waitlist.helix.work (and anything else) -> public/index.html
+ *   albion.helix.work (or path /albion)     -> public/albion.html
+ * API routes:
+ *   GET  /api/health              which integrations are live (page picks its ladder rungs)
+ *   POST /api/waitlist            Helix signup capture -> data/waitlist.ndjson
+ *   POST /api/agent               Ask Helix text agent (Gemini) -> {reply, action?}; 503 without a key
+ *   POST /api/voice/token         Gemini Live ephemeral token mint; 503 without a key
+ *   POST /api/log                 voice telemetry -> data/voicelog.ndjson
+ *   POST /api/albion/waitlist     Albion org waitlist -> data/albion-waitlist.ndjson
+ *   POST /api/albion/contributor  Albion contributor register -> data/albion-contributors.ndjson
  * Single instance by design: in-memory rate limits, per-file append queues.
  */
 import { createServer } from 'node:http';
@@ -79,6 +85,57 @@ export function appendRecord(file, obj) {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function clean(value, max) {
   return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
+}
+
+const ALBION_SECTORS = ['Legal', 'Financial services', 'Public sector', 'Health', 'Defence', 'Technology', 'Other'];
+const CONTRIB_SECTORS = [...ALBION_SECTORS, 'Education and research'];
+const CONTRIB_YEARS = ['Under 5', '5 to 10', '10 to 20', '20 or more'];
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+
+function cleanUtm(utm) {
+  const out = {};
+  if (utm && typeof utm === 'object' && !Array.isArray(utm)) {
+    for (const k of UTM_KEYS) if (typeof utm[k] === 'string') out[k] = clean(utm[k], 200);
+  }
+  return out;
+}
+
+export function validateAlbionWaitlist(body) {
+  const email = clean(body.email, 254).toLowerCase();
+  const organisation = clean(body.organisation, 200);
+  if (!EMAIL_RE.test(email)) return { error: 'A valid email address is required.' };
+  if (!organisation) return { error: 'Organisation is required.' };
+  if (!ALBION_SECTORS.includes(body.sector)) return { error: 'A sector is required.' };
+  if (body.consent !== true) return { error: 'Consent is required to join the list.' };
+  return {
+    record: {
+      email,
+      organisation,
+      sector: body.sector,
+      sovereignty: ['yes', 'no', 'not sure'].includes(body.sovereignty) ? body.sovereignty : '',
+      utm: cleanUtm(body.utm),
+    },
+  };
+}
+
+export function validateAlbionContributor(body) {
+  const name = clean(body.name, 200);
+  const email = clean(body.email, 254).toLowerCase();
+  if (!name) return { error: 'Name is required.' };
+  if (!EMAIL_RE.test(email)) return { error: 'A valid email address is required.' };
+  if (!CONTRIB_SECTORS.includes(body.sector)) return { error: 'A sector is required.' };
+  if (!CONTRIB_YEARS.includes(body.years)) return { error: 'Years of experience is required.' };
+  if (body.consent !== true) return { error: 'Consent is required to join the register.' };
+  return {
+    record: {
+      name,
+      email,
+      sector: body.sector,
+      years: body.years,
+      role: clean(body.role, 200),
+      utm: cleanUtm(body.utm),
+    },
+  };
 }
 
 export function validateSignup(body) {
@@ -165,7 +222,7 @@ async function callGemini(message, history) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: CONTEXT_PACK + TOOL_SUFFIX }] },
       contents: toGeminiContents(message, history),
-      generationConfig: { temperature: 0.3, maxOutputTokens: 500 },
+      generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }, // the model thinks inside this budget; 500 left answers truncated
       tools: [SIGNUP_TOOL],
     }),
     signal: AbortSignal.timeout(10_000),
@@ -278,9 +335,9 @@ const CSP = [
   "base-uri 'none'",
 ].join('; ');
 
-let pageCache = null;
-async function sendPage(res) {
-  pageCache ??= await readFile(join(ROOT, 'public', 'index.html'));
+const pageCache = new Map();
+async function sendPage(res, file = 'index.html') {
+  if (!pageCache.has(file)) pageCache.set(file, await readFile(join(ROOT, 'public', file)));
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'public, max-age=300',
@@ -288,7 +345,7 @@ async function sendPage(res) {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
   });
-  res.end(pageCache);
+  res.end(pageCache.get(file));
 }
 
 /* ---------------- routes ---------------- */
@@ -302,6 +359,25 @@ async function handleWaitlist(req, res) {
   if (v.error) return json(res, 400, { ok: false, error: v.error });
   const now = new Date().toISOString();
   await appendRecord('waitlist.ndjson', {
+    id: randomUUID(),
+    created_at: now,
+    ...v.record,
+    user_agent: clean(req.headers['user-agent'], 300),
+    consent_at: now,
+  });
+  return json(res, 200, { ok: true });
+}
+
+async function handleAlbionCapture(req, res, validate, file) {
+  const ip = clientIp(req);
+  const limited = rateLimit('capture', ip);
+  if (!limited.ok) return json(res, 429, { ok: false, error: 'Too many requests.' }, { 'Retry-After': String(limited.retryAfter) });
+  const body = await readJson(req);
+  if (body.website) return json(res, 200, { ok: true }); // honeypot: pretend success, write nothing
+  const v = validate(body);
+  if (v.error) return json(res, 400, { ok: false, error: v.error });
+  const now = new Date().toISOString();
+  await appendRecord(file, {
     id: randomUUID(),
     created_at: now,
     ...v.record,
@@ -365,7 +441,11 @@ async function handleLog(req, res) {
 export const server = createServer(async (req, res) => {
   try {
     const path = new URL(req.url, 'http://local').pathname;
-    if (req.method === 'GET' && (path === '/' || path === '/index.html')) return await sendPage(res);
+    const albionHost = (req.headers.host || '').split(':')[0].startsWith('albion.');
+    if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
+      return await sendPage(res, albionHost ? 'albion.html' : 'index.html');
+    }
+    if (req.method === 'GET' && (path === '/albion' || path === '/albion.html')) return await sendPage(res, 'albion.html');
     if (req.method === 'GET' && path === '/api/health') {
       return json(res, 200, { ok: true, agent: !!GEMINI_API_KEY, voice: !!GEMINI_API_KEY });
     }
@@ -373,6 +453,12 @@ export const server = createServer(async (req, res) => {
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);
     if (req.method === 'POST' && path === '/api/voice/token') return await handleVoiceToken(req, res);
     if (req.method === 'POST' && path === '/api/log') return await handleLog(req, res);
+    if (req.method === 'POST' && path === '/api/albion/waitlist') {
+      return await handleAlbionCapture(req, res, validateAlbionWaitlist, 'albion-waitlist.ndjson');
+    }
+    if (req.method === 'POST' && path === '/api/albion/contributor') {
+      return await handleAlbionCapture(req, res, validateAlbionContributor, 'albion-contributors.ndjson');
+    }
     return json(res, 404, { ok: false, error: 'Not found' });
   } catch (err) {
     return json(res, err.status || 500, { ok: false, error: err.status ? err.message : 'Server error' });
