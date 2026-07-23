@@ -4,8 +4,8 @@ WORKDIR /app
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/data
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-COPY server.mjs context-pack.md ./
-COPY public ./public
+COPY --chmod=0644 server.mjs context-pack.md ./
+COPY --chmod=0644 public ./public
 EXPOSE 3000
 USER node
 CMD ["node", "server.mjs"]

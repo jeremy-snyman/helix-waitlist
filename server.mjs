@@ -470,6 +470,7 @@ export const server = createServer(async (req, res) => {
     }
     return json(res, 404, { ok: false, error: 'Not found' });
   } catch (err) {
+    if (!err.status) console.error('unhandled:', req.method, req.url, err?.message || err); // 4xx are expected; 500s must be visible in logs
     return json(res, err.status || 500, { ok: false, error: err.status ? err.message : 'Server error' });
   }
 });
