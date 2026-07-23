@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-23T09:30:00Z",
+  "title": "Design System: Helix / Albion front doors",
+  "extensions": {
+    "colorMeta": {
+      "void-black": { "role": "neutral", "displayName": "Void Black", "canonical": "#020307", "tonalRamp": ["#020307", "#0A0D14", "#151A24", "#232A38", "#39424F", "#5A6370", "#8B93A0", "#C9CED8"] },
+      "console-panel": { "role": "neutral", "displayName": "Console Panel", "canonical": "#04070D", "tonalRamp": ["#04070D", "#0B101A", "#161D2A", "#242E3E", "#3B4557", "#5C6678", "#8D95A5", "#CBD0DA"] },
+      "hairline-steel": { "role": "neutral", "displayName": "Hairline Steel", "canonical": "#1B2030", "tonalRamp": ["#0B0E16", "#1B2030", "#2B3247", "#3E475F", "#576179", "#7A8398", "#A3AABB", "#D2D6E0"] },
+      "signal-white": { "role": "neutral", "displayName": "Signal White", "canonical": "#F2F5F0", "tonalRamp": ["#2A2D2A", "#4A4E4A", "#6C706C", "#8F938F", "#B2B6B2", "#D0D4D0", "#E4E7E3", "#F2F5F0"] },
+      "readout-grey": { "role": "neutral", "displayName": "Readout Grey", "canonical": "#C0C5D2", "tonalRamp": ["#23262E", "#3B3F4A", "#555A68", "#717786", "#8E94A3", "#A9AFBD", "#C0C5D2", "#DEE1E9"] },
+      "mono-grey": { "role": "neutral", "displayName": "Mono Grey", "canonical": "#7C8393", "tonalRamp": ["#161920", "#292D37", "#3F4450", "#575D6B", "#6F7686", "#7C8393", "#9BA1AF", "#C4C9D3"] },
+      "helix-lime": { "role": "primary", "displayName": "Helix Lime", "canonical": "#C8FF00", "tonalRamp": ["#2A3600", "#455900", "#617D00", "#7FA300", "#9ECA00", "#C8FF00", "#DAFF4D", "#EFFFB0"] },
+      "albion-mint": { "role": "primary", "displayName": "Albion Mint", "canonical": "#2DF1B4", "tonalRamp": ["#063326", "#0B543F", "#11775A", "#189C76", "#20C494", "#2DF1B4", "#6FF6CB", "#BFFBE8"] },
+      "builder-lavender": { "role": "tertiary", "displayName": "Builder Lavender", "canonical": "#A78BFF", "tonalRamp": ["#241A40", "#3B2A68", "#533C92", "#6C50BE", "#8A6DE4", "#A78BFF", "#C3AFFF", "#E1D7FF"] },
+      "interrupt-pink": { "role": "tertiary", "displayName": "Interrupt Pink", "canonical": "#FF3D8A", "tonalRamp": ["#400A20", "#690F34", "#93154A", "#BF1B60", "#E42877", "#FF3D8A", "#FF7AAC", "#FFBBD4"] },
+      "meter-amber": { "role": "tertiary", "displayName": "Meter Amber", "canonical": "#FFB300", "tonalRamp": ["#3D2B00", "#644700", "#8C6400", "#B58200", "#DA9A00", "#FFB300", "#FFC94D", "#FFE3A6"] },
+      "data-cyan": { "role": "tertiary", "displayName": "Data Cyan", "canonical": "#00E5FF", "tonalRamp": ["#00363D", "#005864", "#007C8C", "#00A1B5", "#00C3DB", "#00E5FF", "#4DEDFF", "#A6F6FF"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero headlines only; uppercase Anton with an accent span on the operative phrase." },
+      "headline": { "displayName": "Headline", "purpose": "Section h2, uppercase." },
+      "title": { "displayName": "Title", "purpose": "Panel and card headings." },
+      "body": { "displayName": "Body", "purpose": "Archivo supporting copy in Readout Grey." },
+      "label": { "displayName": "Label", "purpose": "Mono instrument tags: eyebrows, buttons, form labels, notes. Never body copy." }
+    },
+    "motion": [
+      { "name": "state-ease", "value": "color .16s ease, background-color .16s ease, border-color .16s ease", "purpose": "The only component motion: hover/focus state shifts." },
+      { "name": "ambient-rise", "value": "requestAnimationFrame canvas, 0.08-0.3px/frame upward drift", "purpose": "The single authored ambient moment: rising signal particles in heroes." },
+      { "name": "rec-pulse", "value": "opacity 1↔.45 over 1.2s infinite", "purpose": "Recording state on the voice control only." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "640px" },
+      { "name": "stack", "value": "760px" },
+      { "name": "grid-collapse", "value": "900px" },
+      { "name": "hero-stack", "value": "940px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Accent-filled square CTA; lime on Helix, mint on Albion.",
+      "html": "<button class=\"ds-btn-primary\">JOIN THE WAITING LIST</button>",
+      "css": ".ds-btn-primary { font-family: 'Spline Sans Mono', monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; padding: 12px 22px; background: #C8FF00; border: 1px solid #C8FF00; color: #020307; font-weight: 500; border-radius: 0; cursor: pointer; transition: background-color .16s ease, border-color .16s ease; } .ds-btn-primary:hover { background: #d6ff3d; border-color: #d6ff3d; } .ds-btn-primary:focus-visible { outline: 2px solid #C8FF00; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Default bordered button; quiet until hover.",
+      "html": "<button class=\"ds-btn-ghost\">SEE THE PRODUCTS</button>",
+      "css": ".ds-btn-ghost { font-family: 'Spline Sans Mono', monospace; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; padding: 12px 22px; background: none; border: 1px solid #1B2030; color: #F2F5F0; border-radius: 0; cursor: pointer; transition: border-color .16s ease; } .ds-btn-ghost:hover { border-color: #7C8393; } .ds-btn-ghost:focus-visible { outline: 2px solid #C8FF00; outline-offset: 2px; }"
+    },
+    {
+      "name": "Suggestion Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Mono conversation starter in the Helix chat.",
+      "html": "<button class=\"ds-chip\">What is Cortex?</button>",
+      "css": ".ds-chip { font-family: 'Spline Sans Mono', monospace; font-size: 12px; letter-spacing: 0.06em; border: 1px solid #1B2030; color: #C0C5D2; background: none; padding: 8px 12px; border-radius: 0; cursor: pointer; transition: color .16s ease, border-color .16s ease; } .ds-chip:hover { border-color: #C8FF00; color: #F2F5F0; }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Square panel-filled field with mono label; focus shifts border to the page accent.",
+      "html": "<div><label class=\"ds-label\" for=\"ds-f\">WORK EMAIL *</label><input class=\"ds-input\" id=\"ds-f\" type=\"email\" placeholder=\"you@organisation.co.uk\"></div>",
+      "css": ".ds-label { display: block; font-family: 'Spline Sans Mono', monospace; font-size: 11.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #7C8393; margin-bottom: 8px; } .ds-input { width: 100%; background: #04070D; border: 1px solid #1B2030; color: #F2F5F0; font-family: 'Archivo', sans-serif; font-size: 15px; padding: 13px 14px; border-radius: 0; outline: none; transition: border-color .16s ease; } .ds-input:focus { border-color: #C8FF00; } .ds-input::placeholder { color: #7C8393; }"
+    },
+    {
+      "name": "Console Card",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Ruled panel with mono index tag and status square.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-idx\"><span>01 / MEMORY</span><span class=\"ds-card-swatch\"></span></div><h3 class=\"ds-card-h\">CORTEX</h3><p class=\"ds-card-p\">Sovereign memory for AI. Your agents remember; your data never leaves.</p></div>",
+      "css": ".ds-card { background: #04070D; border: 1px solid #1B2030; padding: 32px; display: flex; flex-direction: column; gap: 12px; max-width: 320px; } .ds-card-idx { display: flex; justify-content: space-between; align-items: center; font-family: 'Spline Sans Mono', monospace; font-size: 12px; color: #7C8393; letter-spacing: 0.14em; } .ds-card-swatch { width: 10px; height: 10px; background: #FF3D8A; } .ds-card-h { font-family: 'Anton', sans-serif; font-weight: 400; font-size: 26px; text-transform: uppercase; letter-spacing: 0.02em; color: #F2F5F0; margin: 0; } .ds-card-p { color: #C0C5D2; font-family: 'Archivo', sans-serif; font-size: 14.5px; margin: 0; }"
+    },
+    {
+      "name": "Choice Box",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Bordered label wrapping a native control; checked lifts the border to the accent.",
+      "html": "<label class=\"ds-check\"><input type=\"checkbox\" checked> Cortex</label>",
+      "css": ".ds-check { display: inline-flex; align-items: center; gap: 10px; border: 1px solid #C8FF00; background: #04070D; padding: 12px 14px; cursor: pointer; font-family: 'Archivo', sans-serif; font-size: 14.5px; color: #C0C5D2; transition: border-color .16s ease; } .ds-check input { accent-color: #C8FF00; width: 15px; height: 15px; }"
+    },
+    {
+      "name": "Sticky Nav",
+      "kind": "nav",
+      "refersTo": "panel",
+      "description": "58px hairline-ruled translucent bar: Anton logotype with accent full-stop, ghost + primary pair.",
+      "html": "<div class=\"ds-nav\"><span class=\"ds-nav-logo\">HELIX<i>.</i></span><span class=\"ds-nav-links\"><button class=\"ds-nav-ghost\">ASK HELIX</button><button class=\"ds-nav-cta\">JOIN THE WAITING LIST</button></span></div>",
+      "css": ".ds-nav { display: flex; justify-content: space-between; align-items: center; height: 58px; padding: 0 20px; background: rgba(2,3,7,.92); border-bottom: 1px solid #1B2030; min-width: 480px; } .ds-nav-logo { font-family: 'Anton', sans-serif; font-size: 20px; letter-spacing: 0.04em; color: #F2F5F0; } .ds-nav-logo i { font-style: normal; color: #C8FF00; } .ds-nav-links { display: flex; gap: 10px; } .ds-nav-ghost { font-family: 'Spline Sans Mono', monospace; font-size: 11.5px; letter-spacing: 0.12em; padding: 8px 14px; background: none; border: 1px solid #1B2030; color: #F2F5F0; cursor: pointer; } .ds-nav-cta { font-family: 'Spline Sans Mono', monospace; font-size: 11.5px; letter-spacing: 0.12em; padding: 8px 14px; background: #C8FF00; border: 1px solid #C8FF00; color: #020307; font-weight: 500; cursor: pointer; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Control Room",
+    "overview": "A sovereign operations room at night. Every surface is near-black; structure is drawn, not shaded — 1px steel hairlines rule the space into consoles and panels, each labelled in uppercase mono like instrument tags. Headlines land in towering uppercase Anton, and the room's only colour comes from signal lights: lime for Helix, mint for Albion. The mood is sharp, kinetic and assured — ambient particles rise steadily through the dark, but the controls themselves stay precise and quiet: nothing decorative, confidence through exactness. The system is flat by conviction: no shadows, no rounded corners, no gradient text. Depth comes from one tonal step and the discipline of the ruling lines.",
+    "keyCharacteristics": [
+      "Near-black canvas with a single tonal step for panels",
+      "1px hairline rules as the entire structural language",
+      "Uppercase Anton display over Archivo body over mono microcopy",
+      "Twin signal accents: lime owns helix.work, mint owns albion.helix.work",
+      "Flat, square, quiet components; one ambient authored motion (rising dots)"
+    ],
+    "rules": [
+      { "name": "The Two Signals Rule", "body": "Lime belongs to Helix; mint belongs to Albion. Each site shows the other's accent only in its cross-plug band, and accents stay under roughly a tenth of any viewport. Their rarity is the authority.", "section": "colors" },
+      { "name": "The Instrument Tag Rule", "body": "Every panel, form field and band is labelled in uppercase tracked mono. Mono is the language of measurement here — never body copy, never headlines.", "section": "typography" },
+      { "name": "The Hairline Rule", "body": "Full-bleed hairlines do exactly one job: closing a section. Panels own all four of their edges at content width. No element ever borrows an edge from a full-bleed rule — the T-junction is the system's cardinal sin.", "section": "layout" }
+    ],
+    "dos": [
+      "Do draw all structure with 1px Hairline Steel; group by proximity first, panels second.",
+      "Do keep the page accent rare and semantic — buttons, keywords, focus, selection.",
+      "Do label everything architectural in uppercase tracked mono.",
+      "Do use the 24/32 panel padding scale and 80/48 section rhythm.",
+      "Do hold WCAG 2.2 AA: Readout Grey on Void Black for body, visible focus everywhere, reduced-motion respect for ambient canvases."
+    ],
+    "donts": [
+      "Don't round a corner, cast a shadow, or gradient any text.",
+      "Don't let any element borrow an edge from a full-bleed rule (no border-top:0 tricks).",
+      "Don't cross the accent streams: no mint UI on Helix or lime UI on Albion outside the cross-plug bands.",
+      "Don't introduce new hues, new fonts, or body-copy mono.",
+      "Don't add motion beyond the ambient rising dots and 160ms state eases."
+    ]
+  }
+}
