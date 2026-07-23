@@ -9,6 +9,7 @@
 <meta property="og:description" content="One endpoint, many minds, and a receipt for every answer. Join the waitlist, or get paid to teach it your expertise.">
 <meta property="og:image" content="REPLACE-ME-og-image.png">
 <link rel="canonical" href="https://albion.helix.work/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23020307'/%3E%3Crect x='3' y='3' width='10' height='10' fill='%232DF1B4'/%3E%3C/svg%3E">
 <!--
   Albion waitlist + contributor register · Ink palette · © MindLynx
   Served by server.mjs at albion.helix.work (and /albion on any host).
@@ -30,6 +31,10 @@
   html{scroll-behavior:smooth}
   body{background:var(--bg);color:var(--text);font-family:'Archivo',sans-serif;line-height:1.55;font-size:16px}
   a{color:inherit}
+  a,button,input,select,.radio,.consent{transition:color .16s ease,background-color .16s ease,border-color .16s ease}
+  :focus-visible{outline:2px solid var(--mint);outline-offset:2px}
+  ::selection{background:var(--mint);color:#020307}
+  [id]{scroll-margin-top:74px}
   .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
   .mono{font-family:'Spline Sans Mono',monospace}
   .eyebrow{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--mono)}
@@ -42,7 +47,6 @@
   .nav{display:flex;justify-content:space-between;align-items:center;height:58px;gap:16px}
   .logo{font-family:'Anton',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.04em;text-decoration:none}
   .logo i{font-style:normal;color:var(--mint)}
-  .logo small{font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mono);margin-left:10px}
   .backlink{font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mono);text-decoration:none}
   .backlink:hover{color:var(--lime)}
   .nav .links{display:flex;gap:10px;align-items:center}
@@ -52,9 +56,8 @@
   .btn:hover{border-color:var(--mono)}
   .btn.primary{background:var(--mint);border-color:var(--mint);color:#020307;font-weight:500}
   .btn.primary:hover{background:#5cf6c9;border-color:#5cf6c9}
-  .btn.small{padding:8px 14px;font-size:11.5px}
 
-  .hero{position:relative;padding:120px 0 110px;border-bottom:1px solid var(--line);overflow:hidden;background:var(--bg)}
+  .hero{position:relative;padding:120px 0 110px;overflow:hidden;background:var(--bg)}
   .hero::before{content:'';position:absolute;inset:0;
     background:url('/albion-hero.jpg') calc(100% - 20px) calc(100% - 50px)/auto 78% no-repeat;
     -webkit-mask-image:radial-gradient(ellipse 48% 56% at 52% 66%,#000 40%,rgba(0,0,0,.5) 62%,transparent 80%);
@@ -69,30 +72,20 @@
   .hero .ctas{display:flex;gap:10px;flex-wrap:wrap}
   .hero .under{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);margin-top:16px}
 
-  /* the receipt */
-  .receipt{border:1px solid var(--line);background:var(--panel);font-family:'Spline Sans Mono',monospace;font-size:13px}
-  .receipt .r-bar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);color:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase}
-  .receipt .r-bar i{width:9px;height:9px;background:var(--mint);display:inline-block}
-  .receipt .row{display:flex;justify-content:space-between;gap:16px;padding:11px 16px;border-bottom:1px solid var(--line)}
-  .receipt .row:last-child{border-bottom:none}
-  .receipt .k{color:var(--mono)}
-  .receipt .v{color:var(--text);text-align:right}
-  .receipt .v.mint{color:var(--mint)}
-  .receipt .r-note{padding:11px 16px;color:var(--mono);font-size:11.5px;border-top:1px dashed var(--line)}
-
-  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));border:1px solid var(--line);border-top:0;background:var(--panel)}
-  .strip div{padding:20px 24px;border-right:1px solid var(--line)}
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));border:1px solid var(--line);background:var(--panel)}
+  .strip div{padding:24px;border-right:1px solid var(--line)}
   .strip div:last-child{border-right:none}
   .strip b{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:4px;color:var(--mint)}
   .strip p{color:var(--muted);font-size:13.5px}
 
-  section{padding:76px 0;border-bottom:1px solid var(--line)}
+  section{padding:80px 0;border-bottom:1px solid var(--line)}
+  section.band{padding:48px 0}
   .sect-head{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:40px;flex-wrap:wrap}
   .sect-head p{color:var(--muted);max-width:480px}
   .sect-head h2 span{color:var(--mint)}
 
   .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0;border:1px solid var(--line);background:var(--panel)}
-  .card{padding:28px;border:0 solid var(--line);border-right-width:1px;display:flex;flex-direction:column;gap:12px}
+  .card{padding:32px;border:0 solid var(--line);border-right-width:1px;display:flex;flex-direction:column;gap:12px}
   .card:last-child{border-right-width:0}
   .card .idx{display:flex;justify-content:space-between;align-items:center}
   .card .idx .num{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);letter-spacing:.14em}
@@ -116,7 +109,7 @@
   .ed b{color:var(--mint);font-weight:500}
 
   .why{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);background:var(--panel)}
-  .why>div{padding:30px}
+  .why>div{padding:32px}
   .why>div+div{border-left:1px solid var(--line)}
   .why .date{font-family:'Anton',sans-serif;font-size:30px;text-transform:uppercase;margin-bottom:8px}
   .why .date span{color:var(--mint)}
@@ -132,6 +125,7 @@
   .radios{display:flex;gap:10px;flex-wrap:wrap}
   .radio{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:var(--panel);padding:12px 16px;cursor:pointer;font-size:14.5px;color:var(--muted)}
   .radio input{accent-color:var(--mint)}
+  .radio:has(input:checked){border-color:var(--mint);color:var(--text)}
   .form-note{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);margin-top:14px;max-width:760px}
   .hp{position:absolute;left:-9999px;top:-9999px}
   label.consent{display:flex;gap:10px;align-items:flex-start;font-family:'Archivo',sans-serif;font-size:13.5px;letter-spacing:0;text-transform:none;color:var(--muted);cursor:pointer}
@@ -149,20 +143,19 @@
   .btn.lime{background:var(--lime);border-color:var(--lime);color:#020307;font-weight:500}
   .btn.lime:hover{background:#d9ff4d;border-color:#d9ff4d}
   .fair{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0;border:1px solid var(--line);background:var(--panel);margin-bottom:44px}
-  .fair>div{padding:26px;border-right:1px solid var(--line)}
+  .fair>div{padding:24px;border-right:1px solid var(--line)}
   .fair>div:last-child{border-right:none}
   .fair b{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:8px;color:var(--lime)}
   .fair p{color:var(--muted);font-size:14px}
   @media(max-width:900px){.fair>div{border-right:none;border-bottom:1px solid var(--line)}.fair>div:last-child{border-bottom:none}}
 
-  footer{padding:44px 0 60px}
+  footer{padding:48px 0 64px}
   .foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;color:var(--mono);font-family:'Spline Sans Mono',monospace;font-size:12.5px;letter-spacing:.06em}
   .foot a{color:var(--muted);text-decoration:none}
   .foot a:hover{color:var(--text)}
   .foot .priv{max-width:520px;line-height:1.7}
 
-  @media(max-width:940px){.receipt{max-width:520px}}
-  @media(max-width:640px){.formgrid{grid-template-columns:1fr}.hero{padding:60px 0 50px}section{padding:54px 0}}
+  @media(max-width:640px){.formgrid{grid-template-columns:1fr}.hero{padding:60px 0 50px}section{padding:56px 0}}
 </style>
 </head>
 <body>
@@ -411,7 +404,7 @@
   </div>
 </section>
 
-<section id="helix">
+<section id="helix" class="band">
   <div class="wrap">
     <div class="helixband">
       <div>

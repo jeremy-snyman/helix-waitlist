@@ -28,6 +28,10 @@
   html{scroll-behavior:smooth}
   body{background:var(--bg);color:var(--text);font-family:'Archivo',sans-serif;line-height:1.55;font-size:16px}
   a{color:inherit}
+  a,button,input,textarea,.chip,.check,.radio{transition:color .16s ease,background-color .16s ease,border-color .16s ease}
+  :focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+  ::selection{background:var(--lime);color:#020307}
+  [id]{scroll-margin-top:74px}
   .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
   .mono{font-family:'Spline Sans Mono',monospace}
   .eyebrow{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--mono)}
@@ -48,7 +52,7 @@
   .btn.primary:hover{background:#d6ff3d;border-color:#d6ff3d}
   .btn.small{padding:8px 14px;font-size:11.5px}
 
-  .hero{position:relative;padding:100px 0 80px;border-bottom:1px solid var(--line);overflow:hidden}
+  .hero{position:relative;padding:100px 0 80px;overflow:hidden}
   .hero canvas{position:absolute;inset:0;width:100%;height:100%}
   .hero .wrap{position:relative}
   .hero h1 span{color:var(--lime)}
@@ -59,19 +63,20 @@
   .hero .os-io b{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:6px}
   .hero .os-io p{color:var(--muted);font-size:14px}
 
-  .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));border:1px solid var(--line);border-top:0;background:var(--panel)}
-  .pillars div{padding:20px 24px;border-right:1px solid var(--line)}
+  .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));border:1px solid var(--line);background:var(--panel)}
+  .pillars div{padding:24px;border-right:1px solid var(--line)}
   .pillars div:last-child{border-right:none}
   .pillars b{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:4px}
   .pillars p{color:var(--muted);font-size:13.5px}
 
   section{padding:80px 0;border-bottom:1px solid var(--line)}
+  section.band{padding:48px 0}
   .sect-head{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:40px;flex-wrap:wrap}
   .sect-head p{color:var(--muted);max-width:480px}
   .sect-head h2 span{color:var(--lime)}
 
   .who{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);background:var(--panel)}
-  .who>div{padding:30px}
+  .who>div{padding:32px}
   .who>div+div{border-left:1px solid var(--line)}
   .who b.tag{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px}
   .who p{color:var(--muted);font-size:15px}
@@ -81,7 +86,7 @@
   @media(max-width:760px){.who{grid-template-columns:1fr}.who>div+div{border-left:none;border-top:1px solid var(--line)}}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:0;border:1px solid var(--line);background:var(--panel)}
-  .card{padding:28px;border:0 solid var(--line);border-right-width:1px;border-bottom-width:1px;display:flex;flex-direction:column;gap:12px}
+  .card{padding:32px;border:0 solid var(--line);border-right-width:1px;border-bottom-width:1px;display:flex;flex-direction:column;gap:12px}
   .card .idx{display:flex;justify-content:space-between;align-items:center}
   .card .idx .num{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);letter-spacing:.14em}
   .card .swatch{width:10px;height:10px}
@@ -96,7 +101,7 @@
   .agent-bar .id{display:flex;align-items:center;gap:10px;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--mono)}
   .agent-bar .id i{width:10px;height:10px;background:var(--lime);display:inline-block}
   .agent-bar .tools{display:flex;gap:8px}
-  #chat{height:440px;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+  #chat{height:440px;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
   .msg{max-width:82%;padding:12px 16px;font-size:15px;line-height:1.5}
   .msg.agent{background:#070B14;border:1px solid var(--line);align-self:flex-start}
   .msg.agent b{color:var(--lime);font-weight:600}
@@ -134,7 +139,7 @@
   input[type=text],input[type=email],textarea{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:'Archivo',sans-serif;font-size:15px;padding:13px 14px;outline:none}
   input:focus,textarea:focus{border-color:var(--lime)}
   textarea{min-height:90px;resize:vertical}
-  .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+  .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
   .check{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--panel);padding:12px 14px;cursor:pointer;font-size:14.5px}
   .check input{accent-color:var(--lime);width:15px;height:15px}
   .check.hot{border-color:var(--lime)}
@@ -146,11 +151,11 @@
   label.consent{display:flex;gap:10px;align-items:flex-start;font-family:'Archivo',sans-serif;font-size:13.5px;letter-spacing:0;text-transform:none;color:var(--muted);cursor:pointer}
   label.consent input{accent-color:var(--lime);width:15px;height:15px;flex:none;margin-top:2px}
   label.consent a{color:var(--text)}
-  .privacy-box{border:1px solid var(--line);background:var(--panel);padding:28px;display:grid;gap:12px}
+  .privacy-box{border:1px solid var(--line);background:var(--panel);padding:32px;display:grid;gap:12px}
   .privacy-box p{color:var(--muted);font-size:14.5px}
   .privacy-box b{color:var(--text)}
 
-  footer{padding:44px 0 60px}
+  footer{padding:48px 0 64px}
   .foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;color:var(--mono);font-family:'Spline Sans Mono',monospace;font-size:12.5px;letter-spacing:.06em}
   .foot a{color:var(--muted);text-decoration:none}
   .foot a:hover{color:var(--text)}
@@ -305,7 +310,7 @@
   </div>
 </section>
 
-<section>
+<section class="band">
   <div class="wrap">
     <div class="metis">
       <div>
@@ -321,7 +326,7 @@
   </div>
 </section>
 
-<section id="albion">
+<section id="albion" class="band">
   <div class="wrap">
     <div class="metis" style="border-color:var(--mint)">
       <div>
