@@ -43,6 +43,8 @@
   .logo{font-family:'Anton',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.04em;text-decoration:none}
   .logo i{font-style:normal;color:var(--mint)}
   .logo small{font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mono);margin-left:10px}
+  .backlink{font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mono);text-decoration:none}
+  .backlink:hover{color:var(--lime)}
   .nav .links{display:flex;gap:10px;align-items:center}
   .nav a{text-decoration:none}
 
@@ -52,9 +54,16 @@
   .btn.primary:hover{background:#5cf6c9;border-color:#5cf6c9}
   .btn.small{padding:8px 14px;font-size:11.5px}
 
-  .hero{position:relative;padding:96px 0 72px;border-bottom:1px solid var(--line);overflow:hidden}
+  .hero{position:relative;padding:120px 0 110px;border-bottom:1px solid var(--line);overflow:hidden;background:var(--bg)}
+  .hero::before{content:'';position:absolute;inset:0;
+    background:url('/albion-hero.jpg') calc(100% - 20px) calc(100% - 50px)/auto 78% no-repeat;
+    -webkit-mask-image:radial-gradient(ellipse 48% 56% at 52% 66%,#000 40%,rgba(0,0,0,.5) 62%,transparent 80%);
+    mask-image:radial-gradient(ellipse 48% 56% at 52% 66%,#000 40%,rgba(0,0,0,.5) 62%,transparent 80%)}
+  .hero::after{content:'';position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(90deg,transparent 84%,var(--bg) 97%),linear-gradient(180deg,transparent 86%,var(--bg) 99%)}
   .hero canvas{position:absolute;inset:0;width:100%;height:100%}
-  .hero .wrap{position:relative;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,1fr);gap:48px;align-items:center}
+  .hero .wrap{position:relative}
+  .hero .wrap>div{max-width:640px}
   .hero h1 span{color:var(--mint)}
   .hero p.sub{max-width:600px;color:var(--muted);font-size:18.5px;margin:20px 0 30px}
   .hero .ctas{display:flex;gap:10px;flex-wrap:wrap}
@@ -71,7 +80,7 @@
   .receipt .v.mint{color:var(--mint)}
   .receipt .r-note{padding:11px 16px;color:var(--mono);font-size:11.5px;border-top:1px dashed var(--line)}
 
-  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));border-bottom:1px solid var(--line);background:var(--panel)}
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));border:1px solid var(--line);border-top:0;background:var(--panel)}
   .strip div{padding:20px 24px;border-right:1px solid var(--line)}
   .strip div:last-child{border-right:none}
   .strip b{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:4px;color:var(--mint)}
@@ -133,6 +142,12 @@
   .success .btn{margin-top:16px}
   .err{display:none;font-family:'Spline Sans Mono',monospace;font-size:12.5px;color:var(--pink);margin-top:12px}
 
+  .helixband{display:flex;justify-content:space-between;align-items:center;gap:32px;border:1px solid var(--lime);background:var(--panel);padding:32px;flex-wrap:wrap}
+  .helixband h3 span{color:var(--lime)}
+  .helixband p{color:var(--muted);max-width:560px;margin-top:6px}
+  .helixband .links{display:flex;gap:12px;flex-wrap:wrap}
+  .btn.lime{background:var(--lime);border-color:var(--lime);color:#020307;font-weight:500}
+  .btn.lime:hover{background:#d9ff4d;border-color:#d9ff4d}
   .fair{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0;border:1px solid var(--line);background:var(--panel);margin-bottom:44px}
   .fair>div{padding:26px;border-right:1px solid var(--line)}
   .fair>div:last-child{border-right:none}
@@ -146,7 +161,7 @@
   .foot a:hover{color:var(--text)}
   .foot .priv{max-width:520px;line-height:1.7}
 
-  @media(max-width:940px){.hero .wrap{grid-template-columns:1fr}.receipt{max-width:520px}}
+  @media(max-width:940px){.receipt{max-width:520px}}
   @media(max-width:640px){.formgrid{grid-template-columns:1fr}.hero{padding:60px 0 50px}section{padding:54px 0}}
 </style>
 </head>
@@ -154,7 +169,10 @@
 
 <header>
   <div class="wrap nav">
-    <a class="logo" href="#top">Albion<i>.</i><small>part of Helix</small></a>
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <a class="logo" href="#top">Albion<i>.</i></a>
+      <a class="backlink" href="/helix">part of Helix &rarr;</a>
+    </div>
     <div class="links">
       <a class="btn" href="#contribute">For contributors</a>
       <a class="btn primary" href="#waitlist">Join the waitlist</a>
@@ -175,21 +193,15 @@
       </div>
       <p class="under">Early access is offered in list order. No spam, no sharing, one email when your place comes up.</p>
     </div>
-    <div class="receipt" aria-label="Example answer receipt">
-      <div class="r-bar"><span><i></i>&nbsp;Receipt &middot; every answer</span><span>req_7F3A</span></div>
-      <div class="row"><span class="k">sovereign</span><span class="v mint">true &middot; fail-closed</span></div>
-      <div class="row"><span class="k">handled by</span><span class="v">right-sized model &middot; in boundary</span></div>
-      <div class="row"><span class="k">verified</span><span class="v mint">passed &middot; checked against the facts</span></div>
-      <div class="row"><span class="k">cost</span><span class="v">itemised &middot; per answer</span></div>
-      <div class="r-note">Illustrative. What each field shows: which model handled the request, whether it stayed sovereign, what was verified, what it cost.</div>
-    </div>
   </div>
 </div>
 
-<div class="strip">
-  <div><b>It shows its working</b><p>Every answer carries a receipt: which model handled it, whether it stayed sovereign, and what it cost. Nothing is unlogged.</p></div>
-  <div><b>Sovereign stays sovereign</b><p>Mark a workload sovereign and it is fail-closed: a foreign or frontier model is refused the content before a single key is unlocked.</p></div>
-  <div><b>It verifies, it does not guess</b><p>On checkable work, Albion generates, verifies against the facts, and keeps the answer that passes. Quality from proof, not a bigger bill.</p></div>
+<div class="wrap">
+  <div class="strip">
+    <div><b>It shows its working</b><p>Every answer carries a receipt: which model handled it, whether it stayed sovereign, and what it cost. Nothing is unlogged.</p></div>
+    <div><b>Sovereign stays sovereign</b><p>Mark a workload sovereign and it is fail-closed: a foreign or frontier model is refused the content before a single key is unlocked.</p></div>
+    <div><b>It verifies, it does not guess</b><p>On checkable work, Albion generates, verifies against the facts, and keeps the answer that passes. Quality from proof, not a bigger bill.</p></div>
+  </div>
 </div>
 
 <section id="what">
@@ -399,6 +411,22 @@
   </div>
 </section>
 
+<section id="helix">
+  <div class="wrap">
+    <div class="helixband">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Part of Helix</p>
+        <h3>Albion is one member of the <span>Helix</span> family</h3>
+        <p>Helix lets you hire an AI team you actually own: brief it by talking, put it to work, and keep your data and memory entirely yours. Albion is its sovereign compound model.</p>
+      </div>
+      <div class="links">
+        <a class="btn lime" href="/helix">Meet Helix</a>
+        <a class="btn" href="/helix#waitlist">Join the Helix waiting list</a>
+      </div>
+    </div>
+  </div>
+</section>
+
 <footer>
   <div class="wrap foot">
     <div class="priv">
@@ -407,7 +435,7 @@
       Albion is in development; nothing on this page is a live service claim.
     </div>
     <div>
-      <a href="#top">Albion</a> &nbsp;&middot;&nbsp; part of Helix<br><br>
+      <a href="#top">Albion</a> &nbsp;&middot;&nbsp; <a href="/helix">part of Helix &rarr;</a><br><br>
       <a id="contact-link" href="mailto:REPLACE-ME">Contact</a>
     </div>
   </div>

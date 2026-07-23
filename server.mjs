@@ -446,6 +446,12 @@ export const server = createServer(async (req, res) => {
       return await sendPage(res, albionHost ? 'albion.html' : 'index.html');
     }
     if (req.method === 'GET' && (path === '/albion' || path === '/albion.html')) return await sendPage(res, 'albion.html');
+    if (req.method === 'GET' && (path === '/helix' || path === '/helix.html')) return await sendPage(res, 'index.html'); // the way back from albion.* hosts, where / is Albion
+    if (req.method === 'GET' && path === '/albion-hero.jpg') { // whitelisted, not a generic file server
+      const img = await readFile(join(ROOT, 'public', 'albion-hero.jpg'));
+      res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' });
+      return res.end(img);
+    }
     if (req.method === 'GET' && path === '/api/health') {
       return json(res, 200, { ok: true, agent: !!GEMINI_API_KEY, voice: !!GEMINI_API_KEY });
     }

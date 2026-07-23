@@ -38,6 +38,7 @@ One process serves two sites by Host header: a host beginning `albion.` (albion.
 |---|---|---|
 | `GET /`, `/index.html` | static | Helix page, or the Albion page on an `albion.` host; pages cached in memory after first read; CSP + nosniff + referrer headers |
 | `GET /albion`, `/albion.html` | static | the Albion page on any host |
+| `GET /helix`, `/helix.html` | static | the Helix page on any host — the way back from albion.* hosts, where `/` is Albion |
 | `GET /api/health` | health | `{ok, agent, voice}` — booleans keyed off `GEMINI_API_KEY`; the page reads this once at load to pick its ladder rungs |
 | `POST /api/waitlist` | capture | the `FORM_ENDPOINT` seam |
 | `POST /api/agent` | text agent | the `AGENT_ENDPOINT` seam |
