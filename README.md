@@ -1,13 +1,15 @@
 # helix.work
 
-The public early-access front door for Helix: one static page, an Ask Helix agent, and a waiting list captured into an owned datastore. One dependency (Gemini Live token minting), no build step.
+The public early-access front doors for Helix: the Helix page (with Vera, the Ask Helix agent), the Albion page and the Cortex page, served by one process off the Host header, with waiting lists captured into an owned datastore. One dependency (Gemini Live token minting), no build step.
 
 ## Run
 
 ```sh
 npm install              # once; only @google/genai
-node server.mjs          # http://localhost:3000
+node server.mjs          # http://localhost:3000 (/albion and /cortex serve the other pages)
 ```
+
+Production runs the `Dockerfile` (node:22-slim, `DATA_DIR=/data`): mount a persistent volume at `/data`.
 
 Optional `.env` (see `.env.example`): `GEMINI_API_KEY` unlocks the live agent and Gemini Live voice. Without it the page runs in demo mode (scripted brain, Web Speech voice) and is fully functional.
 

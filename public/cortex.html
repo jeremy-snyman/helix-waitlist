@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cortex: sovereign memory for AI</title>
+<meta name="description" content="Long-lived, self-organising memory that lives in your environment, on your infrastructure, under your control. Your agents remember; your data never leaves. Join the waiting list.">
+<meta property="og:title" content="Cortex: sovereign memory for AI">
+<meta property="og:description" content="Your agents remember everything they learn, and your data never leaves your environment. Join the waiting list.">
+<meta property="og:image" content="REPLACE-ME-og-image.png">
+<link rel="canonical" href="https://cortex.helix.work/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23020307'/%3E%3Crect x='3' y='3' width='10' height='10' fill='%23FF3D8A'/%3E%3C/svg%3E">
+<!--
+  Cortex product page + waiting-list capture · Ink palette · © MindLynx
+  Served by server.mjs at cortex.helix.work (and /cortex on any host).
+  Signups post to the shared /api/waitlist with products ["Cortex"] and
+  source "cortex.helix.work"; demand decides release order (PRODUCT.md).
+  Helix-family page: lime is the working accent, pink is Cortex's
+  instrument light only (small squares and tags, never large surfaces).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#020307; --panel:#04070D; --line:#1B2030;
+    --text:#F2F5F0; --muted:#C0C5D2; --mono:#7C8393;
+    --lime:#C8FF00; --lavender:#A78BFF; --pink:#FF3D8A;
+    --amber:#FFB300; --mint:#2DF1B4; --cyan:#00E5FF;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:'Archivo',sans-serif;line-height:1.55;font-size:16px}
+  a{color:inherit}
+  a,button,input,textarea,.consent{transition:color .16s ease,background-color .16s ease,border-color .16s ease}
+  :focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+  ::selection{background:var(--lime);color:#020307}
+  [id]{scroll-margin-top:74px}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--mono)}
+  h1,h2{font-family:'Anton',sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.01em;line-height:1.04}
+  h1{font-size:clamp(42px,7vw,88px)}
+  h2{font-size:clamp(28px,4vw,44px)}
+  h3{font-family:'Anton',sans-serif;font-weight:400;font-size:24px;text-transform:uppercase;letter-spacing:.02em}
+
+  header{border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(2,3,7,.92);backdrop-filter:blur(4px);z-index:10}
+  .nav{display:flex;justify-content:space-between;align-items:center;height:58px;gap:16px}
+  .logo{font-family:'Anton',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.04em;text-decoration:none}
+  .logo i{font-style:normal;color:var(--lime)}
+  .backlink{font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mono);text-decoration:none}
+  .backlink:hover{color:var(--lime)}
+  .nav .links{display:flex;gap:10px;align-items:center}
+  .nav a{text-decoration:none}
+
+  .btn{display:inline-block;font-family:'Spline Sans Mono',monospace;font-size:13px;letter-spacing:.12em;text-transform:uppercase;padding:12px 22px;border:1px solid var(--line);color:var(--text);background:none;cursor:pointer;text-decoration:none}
+  .btn:hover{border-color:var(--mono)}
+  .btn.primary{background:var(--lime);border-color:var(--lime);color:#020307;font-weight:500}
+  .btn.primary:hover{background:#d6ff3d;border-color:#d6ff3d}
+
+  .hero{position:relative;padding:120px 0 110px;overflow:hidden;background:var(--bg)}
+  .hero canvas{position:absolute;inset:0;width:100%;height:100%}
+  .hero .wrap{position:relative}
+  .hero .wrap>div{max-width:660px}
+  .hero h1 span{color:var(--lime)}
+  .hero p.sub{max-width:620px;color:var(--muted);font-size:18.5px;margin:20px 0 30px}
+  .hero .ctas{display:flex;gap:10px;flex-wrap:wrap}
+  .hero .under{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);margin-top:16px}
+
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));border:1px solid var(--line);background:var(--panel)}
+  .strip div{padding:24px;border-right:1px solid var(--line)}
+  .strip div:last-child{border-right:none}
+  .strip b{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:4px;color:var(--lime)}
+  .strip p{color:var(--muted);font-size:13.5px}
+
+  section{padding:80px 0;border-bottom:1px solid var(--line)}
+  section.band{padding:48px 0}
+  .sect-head{display:flex;justify-content:space-between;align-items:baseline;gap:24px;margin-bottom:40px;flex-wrap:wrap}
+  .sect-head p{color:var(--muted);max-width:480px}
+  .sect-head h2 span{color:var(--lime)}
+
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0;border:1px solid var(--line);background:var(--panel)}
+  .card{padding:32px;border:0 solid var(--line);border-right-width:1px;display:flex;flex-direction:column;gap:12px}
+  .card:last-child{border-right-width:0}
+  .card .idx{display:flex;justify-content:space-between;align-items:center}
+  .card .idx .num{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);letter-spacing:.14em}
+  .card .swatch{width:10px;height:10px;background:var(--pink)}
+  .card p{color:var(--muted);font-size:14.5px}
+  @media(max-width:900px){.card{border-right-width:0;border-bottom-width:1px}.card:last-child{border-bottom-width:0}}
+
+  .who{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);background:var(--panel)}
+  .who>div{padding:32px}
+  .who>div+div{border-left:1px solid var(--line)}
+  .who .tag{display:block;font-family:'Spline Sans Mono',monospace;font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px}
+  .who p{color:var(--muted);font-size:14.5px}
+  .who ul{margin:10px 0 0 18px;color:var(--muted);font-size:14.5px}
+  .who li{margin-bottom:6px}
+  .who li::marker{color:var(--pink)}
+  @media(max-width:760px){.who{grid-template-columns:1fr}.who>div+div{border-left:none;border-top:1px solid var(--line)}}
+
+  .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:760px}
+  .formgrid .full{grid-column:1/-1}
+  label{display:block;font-family:'Spline Sans Mono',monospace;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mono);margin-bottom:8px}
+  input[type=text],input[type=email],textarea{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:'Archivo',sans-serif;font-size:15px;padding:13px 14px;outline:none;appearance:none;-webkit-appearance:none;border-radius:0}
+  textarea{min-height:96px;resize:vertical}
+  input:focus,textarea:focus{border-color:var(--lime)}
+  .form-note{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--mono);margin-top:14px;max-width:760px}
+  .hp{position:absolute;left:-9999px;top:-9999px}
+  label.consent{display:flex;gap:10px;align-items:flex-start;font-family:'Archivo',sans-serif;font-size:13.5px;letter-spacing:0;text-transform:none;color:var(--muted);cursor:pointer}
+  label.consent input{accent-color:var(--lime);width:15px;height:15px;flex:none;margin-top:2px}
+  .success{border:1px solid var(--lime);background:var(--panel);padding:24px;max-width:760px;display:none}
+  .success b{color:var(--lime)}
+  .success p{color:var(--muted);margin-top:8px;font-size:15px}
+  .err{display:none;font-family:'Spline Sans Mono',monospace;font-size:12.5px;color:var(--pink);margin-top:12px}
+
+  .helixband{display:flex;justify-content:space-between;align-items:center;gap:32px;border:1px solid var(--lime);background:var(--panel);padding:32px;flex-wrap:wrap}
+  .helixband h3 span{color:var(--lime)}
+  .helixband p{color:var(--muted);max-width:560px;margin-top:6px}
+  .helixband .links{display:flex;gap:12px;flex-wrap:wrap}
+
+  footer{padding:48px 0 64px}
+  .foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;color:var(--mono);font-family:'Spline Sans Mono',monospace;font-size:12.5px;letter-spacing:.06em}
+  .foot a{color:var(--muted);text-decoration:none}
+  .foot a:hover{color:var(--text)}
+  .foot .priv{max-width:520px;line-height:1.7}
+
+  @media(max-width:640px){.formgrid{grid-template-columns:1fr}.hero{padding:60px 0 50px}section{padding:56px 0}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div style="display:flex;align-items:baseline;gap:10px">
+      <a class="logo" href="#top">Cortex<i>.</i></a>
+      <a class="backlink" href="/helix">part of Helix &rarr;</a>
+    </div>
+    <div class="links">
+      <a class="btn" href="#developers">For developers</a>
+      <a class="btn primary" href="#waitlist">Join the waiting list</a>
+    </div>
+  </div>
+</header>
+
+<div class="hero" id="top">
+  <canvas id="rise"></canvas>
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">01 / Memory &middot; part of Helix &middot; in development</p>
+      <h1>Sovereign <span>memory</span> for AI</h1>
+      <p class="sub">Long-lived, self-organising memory that lives in your environment, on your infrastructure, under your control. Your agents remember everything they learn, and your data never leaves.</p>
+      <div class="ctas">
+        <a class="btn primary" href="#waitlist">Join the waiting list</a>
+        <a class="btn" href="#what">What it is</a>
+      </div>
+      <p class="under">Demand decides release order. Joining the list moves Cortex up the queue.</p>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="strip">
+    <div><b>Your agents remember</b><p>Memory that survives the session, the tool and the restart. What an agent learns on Monday it still knows in a year.</p></div>
+    <div><b>Your data never leaves</b><p>Cortex runs in your environment, on your infrastructure. Nothing is sent to the labs, and nothing trains someone else's model.</p></div>
+    <div><b>It organises itself</b><p>Memory that structures itself as it grows, so what matters stays findable instead of piling up in a transcript.</p></div>
+  </div>
+</div>
+
+<section id="what">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>What <span>Cortex</span> is</h2>
+      <p>Most AI forgets everything the moment the session ends. Cortex is the other kind: a memory your agents keep, that you own outright.</p>
+    </div>
+    <div class="grid3">
+      <div class="card">
+        <div class="idx"><span class="num">01 / LONG-LIVED</span><span class="swatch"></span></div>
+        <h3>It lasts</h3>
+        <p>Memory built to hold for the life of the work, not the length of a chat. Agents carry their history with them, across sessions and across tasks.</p>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">02 / SELF-ORGANISING</span><span class="swatch" style="background:var(--cyan)"></span></div>
+        <h3>It keeps itself in order</h3>
+        <p>New knowledge finds its place as it arrives. The memory stays useful at scale because organising it is the system's job, not yours.</p>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">03 / SELF-HOSTED</span><span class="swatch" style="background:var(--lavender)"></span></div>
+        <h3>It stays yours</h3>
+        <p>Sovereign and self-hosted: your environment, your infrastructure, your control. The memory your business runs on is something you own, not something you rent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="developers">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>Who it is <span>for</span></h2>
+      <p>Cortex ships as part of Helix and stands on its own. Two kinds of people are asking for it.</p>
+    </div>
+    <div class="who">
+      <div>
+        <b class="tag" style="color:var(--lavender)">For developers</b>
+        <p>Builders who want real memory inside their own agentic workloads. Cortex is one of the platform pieces Helix opens up for reuse:</p>
+        <ul>
+          <li>Long-lived memory your agents read and write as they work</li>
+          <li>Sovereign and self-hosted, so it deploys where your stack lives</li>
+          <li>Built for agent workloads rather than bolted on afterwards</li>
+        </ul>
+      </div>
+      <div>
+        <b class="tag" style="color:var(--pink)">For enterprises</b>
+        <p>Organisations that want AI to accumulate knowledge without surrendering it. Your agents remember what they learn about your business, your customers and your way of working, and all of it stays in your environment, under your control, useful to you alone.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="waitlist">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>Join the <span>waiting list</span></h2>
+      <p>Helix products ship in demand order, and the list is the demand. One email when your place comes up; nothing else.</p>
+    </div>
+    <form id="wl-form" class="formgrid" novalidate>
+      <div>
+        <label for="wl-name">Name *</label>
+        <input type="text" id="wl-name" name="name" required autocomplete="name" placeholder="Your name">
+      </div>
+      <div>
+        <label for="wl-email">Work email *</label>
+        <input type="email" id="wl-email" name="email" required autocomplete="email" placeholder="you@organisation.co.uk">
+      </div>
+      <div class="full">
+        <label for="wl-company">Company</label>
+        <input type="text" id="wl-company" name="company" autocomplete="organization" placeholder="Company name (optional)">
+      </div>
+      <div class="full">
+        <label for="wl-usecase">What would your agents remember?</label>
+        <textarea id="wl-usecase" name="use_case" placeholder="Optional: the workload or use case you have in mind"></textarea>
+      </div>
+      <div class="hp" aria-hidden="true">
+        <label for="wl-website">Website</label>
+        <input type="text" id="wl-website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+      <div class="full">
+        <label class="consent"><input type="checkbox" name="consent" required> <span>Keep my details and email me about early access. Consent, not spam; you can ask us to erase them any time at hello@helix.work.</span></label>
+      </div>
+      <div class="full">
+        <button type="submit" class="btn primary">Join the waiting list</button>
+        <span class="err" id="wl-err">Please complete name, email and the consent box.</span>
+      </div>
+    </form>
+    <div class="success" id="wl-success">
+      <b>You are on the list.</b>
+      <p>Cortex ships in demand order, and you have just moved it up. We will email you when something real happens, and not before.</p>
+      <p>In the meantime, Helix itself is worth a look: <a href="/helix" style="color:var(--text)">meet the rest of the family</a>.</p>
+    </div>
+    <p class="form-note">We store your details solely to manage the waiting list and will never share them. Kept until general release or 12 months after last contact, whichever is sooner; erasure any time via hello@helix.work.</p>
+  </div>
+</section>
+
+<section id="helix" class="band">
+  <div class="wrap">
+    <div class="helixband">
+      <div>
+        <p class="eyebrow" style="margin-bottom:8px">Part of Helix</p>
+        <h3>Cortex is one member of the <span>Helix</span> family</h3>
+        <p>Helix lets you hire an AI team you actually own: brief it by talking, put it to work, and keep your data and memory entirely yours. Cortex is its memory.</p>
+      </div>
+      <div class="links">
+        <a class="btn primary" href="/helix">Meet Helix</a>
+        <a class="btn" href="/albion">Meet Albion</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div class="priv">
+      Cortex is part of Helix, built by MindLynx Ltd.<br>
+      Your environment, your infrastructure, your control.<br>
+      Cortex is in development; nothing on this page is a live service claim.
+    </div>
+    <div>
+      <a href="#top">Cortex</a> &nbsp;&middot;&nbsp; <a href="/helix">part of Helix &rarr;</a><br><br>
+      <a href="mailto:hello@helix.work">Contact</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ================= CONFIG ================= */
+var WAITLIST_ENDPOINT="/api/waitlist";   /* shared Helix capture; source below keys per-page demand */
+var SOURCE="cortex.helix.work";
+/* ========================================== */
+
+(function(){
+  /* UTM passthrough: captured once, sent with the payload */
+  var utm={};
+  try{
+    var q=new URLSearchParams(window.location.search);
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].forEach(function(k){
+      if(q.get(k)){utm[k]=q.get(k);}
+    });
+  }catch(e){}
+
+  var form=document.getElementById('wl-form');
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    var err=document.getElementById('wl-err');
+    var payload={
+      name:form.name.value.trim(),
+      email:form.email.value.trim(),
+      company:form.company.value.trim(),
+      use_case:form.use_case.value.trim(),
+      products:['Cortex'],
+      source:SOURCE,
+      consent:form.consent.checked,
+      website:form.website.value,
+      utm:utm
+    };
+    if(!(payload.name && payload.email && payload.email.indexOf('@')>0 && payload.consent===true)){
+      err.style.display='inline';return;
+    }
+    err.style.display='none';
+    var btn=form.querySelector('button[type=submit]');
+    btn.disabled=true;btn.textContent='Sending…';
+    fetch(WAITLIST_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(function(r){
+        if(r.ok){
+          form.style.display='none';
+          var ok=document.getElementById('wl-success');
+          ok.style.display='block';
+          ok.scrollIntoView({behavior:'smooth',block:'center'});
+        }else{throw new Error('bad status');}
+      })
+      .catch(function(){
+        btn.disabled=false;btn.textContent='Try again';
+        err.textContent='Something went wrong sending the form. Please try again.';
+        err.style.display='inline';
+      });
+  });
+
+  /* riseField: slow-rising dots on the hero canvas; respects reduced motion */
+  (function(){
+    var cv=document.getElementById('rise');if(!cv)return;
+    var still=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var ctx=cv.getContext('2d');var W,H,pts=[];
+    var colours=['#C8FF00','#C8FF00','#FF3D8A','#A78BFF','#7C8393','#7C8393'];
+    function size(){W=cv.width=cv.offsetWidth;H=cv.height=cv.offsetHeight;}
+    function seed(){
+      pts=[];var n=Math.floor(W/26);
+      for(var i=0;i<n;i++){
+        pts.push({x:Math.random()*W,y:Math.random()*H,s:1.5+Math.random()*2.5,
+          v:0.08+Math.random()*0.22,c:colours[Math.floor(Math.random()*colours.length)],
+          a:0.06+Math.random()*0.22});
+      }
+    }
+    function draw(){
+      ctx.clearRect(0,0,W,H);
+      for(var i=0;i<pts.length;i++){
+        var p=pts[i];
+        ctx.globalAlpha=p.a;ctx.fillStyle=p.c;ctx.fillRect(p.x,p.y,p.s,p.s);
+      }
+      ctx.globalAlpha=1;
+    }
+    function tick(){
+      for(var i=0;i<pts.length;i++){
+        var p=pts[i];
+        p.y-=p.v;if(p.y<-4){p.y=H+4;p.x=Math.random()*W;}
+      }
+      draw();requestAnimationFrame(tick);
+    }
+    window.addEventListener('resize',function(){size();seed();draw();});
+    size();seed();
+    if(still){draw();}else{tick();}
+  })();
+})();
+</script>
+</body>
+</html>

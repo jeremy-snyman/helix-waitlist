@@ -1,8 +1,9 @@
 /**
  * helix.work — single-file server. Zero dependencies, plain node:http.
- * Serves two sites off one process by Host header:
+ * Serves three sites off one process by Host header:
  *   waitlist.helix.work (and anything else) -> public/index.html
  *   albion.helix.work (or path /albion)     -> public/albion.html
+ *   cortex.helix.work (or path /cortex)     -> public/cortex.html
  * API routes:
  *   GET  /api/health              which integrations are live (page picks its ladder rungs)
  *   POST /api/waitlist            Helix signup capture -> data/waitlist.ndjson
@@ -29,7 +30,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 const GEMINI_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || 'gemini-3.1-flash-live-preview';
 
 export const PRODUCTS = ['Cortex', 'Tachyon', 'Pulse', 'Helix Agents', 'Marketplace'];
-const SOURCES = ['helix.work', 'helix.work/agent'];
+const SOURCES = ['helix.work', 'helix.work/agent', 'cortex.helix.work'];
 const BODY_CAP = 64 * 1024;
 
 /* ---------------- rate limiter (in-memory sliding window) ---------------- */
@@ -152,6 +153,7 @@ export function validateSignup(body) {
       products: Array.isArray(body.products) ? body.products.filter((p) => PRODUCTS.includes(p)) : [],
       use_case: clean(body.use_case, 2000),
       source: SOURCES.includes(body.source) ? body.source : 'helix.work',
+      utm: cleanUtm(body.utm),
     },
   };
 }
@@ -441,12 +443,13 @@ async function handleLog(req, res) {
 export const server = createServer(async (req, res) => {
   try {
     const path = new URL(req.url, 'http://local').pathname;
-    const albionHost = (req.headers.host || '').split(':')[0].startsWith('albion.');
+    const host = (req.headers.host || '').split(':')[0];
     if (req.method === 'GET' && (path === '/' || path === '/index.html')) {
-      return await sendPage(res, albionHost ? 'albion.html' : 'index.html');
+      return await sendPage(res, host.startsWith('albion.') ? 'albion.html' : host.startsWith('cortex.') ? 'cortex.html' : 'index.html');
     }
     if (req.method === 'GET' && (path === '/albion' || path === '/albion.html')) return await sendPage(res, 'albion.html');
-    if (req.method === 'GET' && (path === '/helix' || path === '/helix.html')) return await sendPage(res, 'index.html'); // the way back from albion.* hosts, where / is Albion
+    if (req.method === 'GET' && (path === '/cortex' || path === '/cortex.html')) return await sendPage(res, 'cortex.html');
+    if (req.method === 'GET' && (path === '/helix' || path === '/helix.html')) return await sendPage(res, 'index.html'); // the way back from albion.*/cortex.* hosts, where / is theirs
     if (req.method === 'GET' && path === '/albion-hero.jpg') { // whitelisted, not a generic file server
       const img = await readFile(join(ROOT, 'public', 'albion-hero.jpg'));
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' });

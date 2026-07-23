@@ -19,6 +19,8 @@ helix-website/
   server.mjs              all server code (node:http)
   public/index.html       the entire Helix page: markup, styles, scripts, scripted brain
   public/albion.html      the Albion page (albion.helix.work): waitlist + contributor register, static forms only
+  public/cortex.html      the Cortex product page (cortex.helix.work): static form posting to the shared /api/waitlist
+  Dockerfile              production container: node:22-slim, DATA_DIR=/data (mount a persistent volume)
   context-pack.md         the agent's system instruction (extract of the guardrails doc §3-10)
   docs/                   requirements, guardrails, this document
   scripts/counts.mjs      per-product demand tally (the release-order metric)
@@ -32,13 +34,14 @@ Everything runs on a single Node >= 22 instance by design: the rate limiter is a
 
 ## 2. Request routing (`server.mjs`)
 
-One process serves two sites by Host header: a host beginning `albion.` (albion.helix.work) gets `public/albion.html` at `/`; every other host (waitlist.helix.work, localhost) gets `public/index.html`. The path `/albion` serves the Albion page on any host, which is what local testing and the Helix page's cross-links use; DNS and the edge canonicalise to the subdomain in production.
+One process serves three sites by Host header: a host beginning `albion.` (albion.helix.work) gets `public/albion.html` at `/`, a host beginning `cortex.` (cortex.helix.work) gets `public/cortex.html`, and every other host (waitlist.helix.work, localhost) gets `public/index.html`. The paths `/albion`, `/cortex` and `/helix` serve those pages on any host, which is what local testing and the pages' cross-links use; DNS and the edge canonicalise to the subdomains in production.
 
 | Route | Handler | Notes |
 |---|---|---|
 | `GET /`, `/index.html` | static | Helix page, or the Albion page on an `albion.` host; pages cached in memory after first read; CSP + nosniff + referrer headers |
 | `GET /albion`, `/albion.html` | static | the Albion page on any host |
-| `GET /helix`, `/helix.html` | static | the Helix page on any host — the way back from albion.* hosts, where `/` is Albion |
+| `GET /cortex`, `/cortex.html` | static | the Cortex page on any host |
+| `GET /helix`, `/helix.html` | static | the Helix page on any host — the way back from albion.*/cortex.* hosts, where `/` is theirs |
 | `GET /api/health` | health | `{ok, agent, voice}` — booleans keyed off `GEMINI_API_KEY`; the page reads this once at load to pick its ladder rungs |
 | `POST /api/waitlist` | capture | the `FORM_ENDPOINT` seam |
 | `POST /api/agent` | text agent | the `AGENT_ENDPOINT` seam |
@@ -62,11 +65,11 @@ Pipeline: rate limit -> honeypot (`website` field set means bot: return 200, wri
 
 ```json
 {"id":"<uuid>","created_at":"<iso>","name":"...","email":"...","company":"...",
- "products":["Cortex"],"use_case":"...","source":"helix.work|helix.work/agent",
- "user_agent":"...","consent_at":"<iso>"}
+ "products":["Cortex"],"use_case":"...","source":"helix.work|helix.work/agent|cortex.helix.work",
+ "utm":{"utm_source":"..."},"user_agent":"...","consent_at":"<iso>"}
 ```
 
-`created_at` and `consent_at` are server time. Both capture paths (classic form, agent mini-form) hit this same route with the same shape; only `source` differs (FR-8).
+`created_at` and `consent_at` are server time. All three capture paths (classic form, agent mini-form, the Cortex page form) hit this same route with the same shape; only `source` differs (FR-8) — the Cortex page pre-selects `products:["Cortex"]` and stamps `source:"cortex.helix.work"`, so per-product demand still folds in one place. `utm` is whitelist-filtered (the five `utm_*` keys) like the Albion captures.
 
 **Store**: `appendRecord(file, obj)` — `mkdir -p` on demand, `JSON.stringify + '\n'` appended under a per-file promise chain so concurrent requests never interleave lines. Append-only; a repeat email is a new line and readers fold by email, last write wins.
 
@@ -126,7 +129,8 @@ A `functionCall` part becomes `action`; accompanying text becomes `reply` (canne
 
 ## 8. Deployment
 
-- Any host that runs `node server.mjs` (Node >= 22) with a persistent volume at `data/` and HTTPS at the edge. Single instance. Both subdomains (waitlist.helix.work, albion.helix.work) point at the same instance; the server routes by Host header.
+- Any host that runs `node server.mjs` (Node >= 22) with a persistent volume at `data/` and HTTPS at the edge. Single instance. All three subdomains (waitlist.helix.work, albion.helix.work, cortex.helix.work) point at the same instance; the server routes by Host header.
+- Production home (July 2026): the `Dockerfile` image (node:22-slim, `DATA_DIR=/data`) runs as an ECS Fargate service on the seillen estate behind the existing ALB + Cloudflare, with an encrypted EFS volume mounted at `/data` and AWS Backup on it. See `helix-workspace/docs/HELIX_WORK_GOLIVE_PLAN_2026-07-23.md` in the Helix workspace for the full runbook.
 - `PORT` and `DATA_DIR` via environment. With no `GEMINI_API_KEY` the site is fully functional in demo mode, so the key can be added after DNS cutover.
 - Back up `data/` — it is the waiting list.
 
