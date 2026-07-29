@@ -201,6 +201,93 @@ const SIGNUP_TOOL = {
   }],
 };
 
+/* ---------------- per-site framing ----------------
+   One Vera, three front doors. The knowledge pack is shared and unchanged; a site
+   only chooses what she leads with and which form she can put up, exactly as the
+   MindLynx companion does with its SITE variable. Unknown or absent site = helix,
+   so index.html (which sends none) behaves exactly as before. */
+
+const ALBION_TOOL = {
+  functionDeclarations: [{
+    name: 'show_signup_form',
+    description: 'Render a pre-filled Albion form in the chat. Call ONLY after the visitor has explicitly stated the details the form needs; never with a guessed, assumed or example value. Use intent albion_waitlist for early access (needs email, organisation and sector) and albion_contributor for the paid contributor register (needs name, email, sector and years). If the visitor corrects a detail, call this tool again and a fresh form replaces the old one. Render-only: the visitor reviews the form and presses submit themselves.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        intent: { type: 'STRING', enum: ['albion_waitlist', 'albion_contributor'], description: 'Which Albion form to render' },
+        name: { type: 'STRING', description: 'Visitor name as given (contributor register only)' },
+        email: { type: 'STRING', description: 'Visitor email as given' },
+        organisation: { type: 'STRING', description: 'Their organisation (waitlist only)' },
+        sector: { type: 'STRING', enum: CONTRIB_SECTORS, description: 'Their sector, only if they named it' },
+        years: { type: 'STRING', enum: CONTRIB_YEARS, description: 'Years of experience (contributor register only)' },
+        role: { type: 'STRING', description: 'Their role or field of expertise (contributor register only)' },
+      },
+      required: ['intent', 'email'],
+    },
+  }],
+};
+
+const SITES = {
+  helix: { tool: SIGNUP_TOOL, suffix: '' },
+  albion: {
+    tool: ALBION_TOOL,
+    suffix: `
+
+SITE
+
+You are on albion.helix.work, Albion's own site. Lead with Albion: one endpoint, many minds, a receipt for every answer, sovereign work kept sovereign, and the cost curve that bends down. Helix is the family Albion belongs to, not today's subject; mention it only if asked, and point to helix.work for it.
+
+Two next steps live on this page, and they are the only forms you can put up. The waitlist is early access, offered in list order, and it needs their email, their organisation and their sector. The contributor register is for British professionals with deep sector expertise, who are paid, credited and share in what Albion earns; it needs their name, email, sector and how long they have worked in it. Ask which one they want rather than guessing, and never put up the Helix waiting-list form here.`,
+  },
+  cortex: {
+    tool: SIGNUP_TOOL,
+    suffix: `
+
+SITE
+
+You are on cortex.helix.work, Cortex's own page. Lead with Cortex: sovereign memory for AI, long-lived and self-organising, living on the customer's own infrastructure, so their agents remember and their data never leaves. The other Helix products are context, not the subject, unless the visitor asks about them.
+
+The next step here is the Helix waiting list. When you put the form up, Cortex is the product they came for, so include it.`,
+  },
+};
+
+/** The site a request belongs to. Anything unrecognised is the Helix front door. */
+export function siteOf(value) {
+  return Object.prototype.hasOwnProperty.call(SITES, value) ? value : 'helix';
+}
+
+/**
+ * A tool call, cleaned into the action the page renders. The model chooses the
+ * intent, but only from the ones its own site offers: an Albion intent arriving
+ * on the Helix door (or the reverse) is coerced back, so a confused model cannot
+ * put a form up that the page has no endpoint for.
+ */
+export function toAction(args, site) {
+  const albion = site === 'albion';
+  const asked = String(args.intent || '');
+  const intent = albion
+    ? (asked === 'albion_contributor' ? 'albion_contributor' : 'albion_waitlist')
+    : 'helix_waitlist';
+  const action = {
+    type: 'show_signup_form',
+    intent,
+    name: clean(args.name, 200),
+    email: clean(args.email, 254).toLowerCase(),
+  };
+  if (intent === 'helix_waitlist') {
+    action.products = Array.isArray(args.products) ? args.products.filter((p) => PRODUCTS.includes(p)) : [];
+    if (site === 'cortex' && !action.products.includes('Cortex')) action.products.unshift('Cortex');
+  } else {
+    action.sector = CONTRIB_SECTORS.includes(args.sector) ? args.sector : '';
+    if (intent === 'albion_waitlist') action.organisation = clean(args.organisation, 200);
+    else {
+      action.years = CONTRIB_YEARS.includes(args.years) ? args.years : '';
+      action.role = clean(args.role, 200);
+    }
+  }
+  return action;
+}
+
 function toGeminiContents(message, history) {
   const contents = [];
   for (const turn of (Array.isArray(history) ? history.slice(-20) : [])) {
@@ -217,15 +304,16 @@ function toGeminiContents(message, history) {
   return contents;
 }
 
-async function callGemini(message, history) {
+async function callGemini(message, history, site = 'helix') {
+  const { tool, suffix } = SITES[siteOf(site)];
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: CONTEXT_PACK + TOOL_SUFFIX }] },
+      systemInstruction: { parts: [{ text: CONTEXT_PACK + suffix + TOOL_SUFFIX }] },
       contents: toGeminiContents(message, history),
       generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }, // the model thinks inside this budget; 500 left answers truncated
-      tools: [SIGNUP_TOOL],
+      tools: [tool],
     }),
     signal: AbortSignal.timeout(10_000),
   });
@@ -235,14 +323,12 @@ async function callGemini(message, history) {
   const call = parts.find((p) => p.functionCall)?.functionCall;
   let action;
   if (call?.name === 'show_signup_form') {
-    const args = call.args || {};
-    action = {
-      type: 'show_signup_form',
-      name: clean(args.name, 200),
-      email: clean(args.email, 254).toLowerCase(),
-      products: Array.isArray(args.products) ? args.products.filter((p) => PRODUCTS.includes(p)) : [],
-    };
-    reply ||= 'Here is your form, pre-filled. Tick the products you want first, check the consent box, then press the button. The button press is yours to make, not mine.';
+    action = toAction(call.args || {}, siteOf(site));
+    reply ||= action.intent === 'albion_contributor'
+      ? 'Here is the contributor register, pre-filled. Check it over, tick the consent box, then press the button. The button press is yours to make, not mine.'
+      : action.intent === 'albion_waitlist'
+        ? 'Here is the waitlist form, pre-filled. Check it over, tick the consent box, then press the button. The button press is yours to make, not mine.'
+        : 'Here is your form, pre-filled. Tick the products you want first, check the consent box, then press the button. The button press is yours to make, not mine.';
   }
   if (!reply) throw new Error('empty reply'); // safety block or similar: let the scripted brain take it
   return { reply, action };
@@ -264,7 +350,8 @@ VOICE RULES
 - After the tool call, tell them the form is on their screen and the button press is theirs to make.
 - Never claim to have submitted anything.`;
 
-async function mintVoiceToken() {
+async function mintVoiceToken(site = 'helix') {
+  const { tool, suffix } = SITES[siteOf(site)];
   const { GoogleGenAI } = await import('@google/genai'); // the one dependency; only loaded when voice is used
   const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY, httpOptions: { apiVersion: 'v1alpha' } });
   const now = Date.now();
@@ -278,8 +365,8 @@ async function mintVoiceToken() {
         config: {
           responseModalities: ['AUDIO'],
           temperature: 0.3,
-          systemInstruction: CONTEXT_PACK + VOICE_SUFFIX,
-          tools: [SIGNUP_TOOL],
+          systemInstruction: CONTEXT_PACK + suffix + VOICE_SUFFIX,
+          tools: [tool],
           inputAudioTranscription: {},
           outputAudioTranscription: {},
         },
@@ -398,7 +485,7 @@ async function handleAgent(req, res) {
   const message = clean(body.message, 2000);
   if (!message) return json(res, 400, { ok: false, error: 'A message is required.' });
   try {
-    const { reply, action } = await callGemini(message, body.history);
+    const { reply, action } = await callGemini(message, body.history, body.site);
     const filtered = redact(reply);
     if (filtered.found.length) {
       appendRecord('redactions.ndjson', { ts: new Date().toISOString(), tokens: filtered.found, ip }).catch(() => {});
@@ -413,10 +500,10 @@ async function handleVoiceToken(req, res) {
   const ip = clientIp(req);
   const limited = rateLimit('voice', ip);
   if (!limited.ok) return json(res, 429, { ok: false, error: 'Too many requests.' }, { 'Retry-After': String(limited.retryAfter) });
-  await readJson(req);
+  const body = await readJson(req);
   if (!GEMINI_API_KEY) return json(res, 503, { degrade: 'webspeech' });
   try {
-    const token = await mintVoiceToken();
+    const token = await mintVoiceToken(body.site); // voice is framed by the same site as the page
     return json(res, 200, { token, model: GEMINI_LIVE_MODEL });
   } catch (err) {
     console.error('voice token mint failed:', err?.message || err);
@@ -450,6 +537,15 @@ export const server = createServer(async (req, res) => {
     if (req.method === 'GET' && (path === '/albion' || path === '/albion.html')) return await sendPage(res, 'albion.html');
     if (req.method === 'GET' && (path === '/cortex' || path === '/cortex.html')) return await sendPage(res, 'cortex.html');
     if (req.method === 'GET' && (path === '/helix' || path === '/helix.html')) return await sendPage(res, 'index.html'); // the way back from albion.*/cortex.* hosts, where / is theirs
+    if (req.method === 'GET' && path === '/vera.js') { // the shared companion; whitelisted like the hero
+      if (!pageCache.has('vera.js')) pageCache.set('vera.js', await readFile(join(ROOT, 'public', 'vera.js')));
+      res.writeHead(200, {
+        'Content-Type': 'text/javascript; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      return res.end(pageCache.get('vera.js'));
+    }
     if (req.method === 'GET' && path === '/albion-hero.jpg') { // whitelisted, not a generic file server
       const img = await readFile(join(ROOT, 'public', 'albion-hero.jpg'));
       res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' });
