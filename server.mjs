@@ -8,7 +8,7 @@
  *   GET  /api/health              which integrations are live (page picks its ladder rungs)
  *   POST /api/waitlist            Helix signup capture -> data/waitlist.ndjson
  *   POST /api/agent               Ask Helix text agent (Gemini) -> {reply, action?}; 503 without a key
- *   POST /api/voice/token         Gemini Live ephemeral token mint; 503 without a key
+ *   POST /api/voice/token         signed Pipecat voice session (Vera, Cartesia); 503 unconfigured
  *   POST /api/log                 voice telemetry -> data/voicelog.ndjson
  *   POST /api/albion/waitlist     Albion org waitlist -> data/albion-waitlist.ndjson
  *   POST /api/albion/contributor  Albion contributor register -> data/albion-contributors.ndjson
@@ -18,7 +18,7 @@ import { createServer } from 'node:http';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 try { process.loadEnvFile(); } catch { /* no .env is fine: demo mode */ }
 
@@ -27,7 +27,25 @@ const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.DATA_DIR || join(ROOT, 'data');
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
-const GEMINI_LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || 'gemini-3.1-flash-live-preview';
+/* ---------------- voice ----------------
+   Vera speaks through the Helix Pipecat service, exactly as she does on
+   mindlynx.ai — one Vera, one voice, across every front door. `VOICE_OFFER_SECRET`
+   is the shared secret the voice service verifies the session blob with
+   (`WEBSITE_OFFER_SECRET` at its end); without it voice reports itself
+   unavailable rather than half-working. */
+const VOICE_OFFER_SECRET = process.env.VOICE_OFFER_SECRET || '';
+const VOICE_CONNECT_URL =
+  process.env.VOICE_CONNECT_URL || 'https://app.helix.work/pipecat/api/offer';
+// Lucy — British female, the voice MindLynx picked. Same id, same speed, so the
+// three sites and MindLynx are audibly one person.
+const VERA_VOICE_ID = process.env.VERA_VOICE_ID || '2f251ac3-89a9-4a77-a452-704b474ccd01';
+const VERA_VOICE_SPEED = Number(process.env.VERA_VOICE_SPEED || '1.15');
+/** The host each site answers on — what the voice service logs the session as. */
+const SITE_HOSTS = {
+  helix: 'helix.work',
+  albion: 'albion.helix.work',
+  cortex: 'cortex.helix.work',
+};
 
 export const PRODUCTS = ['Cortex', 'Tachyon', 'Pulse', 'Helix Agents', 'Marketplace'];
 const SOURCES = ['helix.work', 'helix.work/agent', 'cortex.helix.work'];
@@ -334,7 +352,7 @@ async function callGemini(message, history, site = 'helix') {
   return { reply, action };
 }
 
-/* ---------------- Gemini Live voice: ephemeral token mint ---------------- */
+/* ---------------- Pipecat voice: signed session mint ---------------- */
 const VOICE_SUFFIX = `
 
 VOICE RULES
@@ -350,31 +368,34 @@ VOICE RULES
 - After the tool call, tell them the form is on their screen and the button press is theirs to make.
 - Never claim to have submitted anything.`;
 
-async function mintVoiceToken(site = 'helix') {
-  const { tool, suffix } = SITES[siteOf(site)];
-  const { GoogleGenAI } = await import('@google/genai'); // the one dependency; only loaded when voice is used
-  const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY, httpOptions: { apiVersion: 'v1alpha' } });
-  const now = Date.now();
-  const token = await ai.authTokens.create({
-    config: {
-      uses: 1,
-      expireTime: new Date(now + 10 * 60_000).toISOString(),      // hard server-side session kill
-      newSessionExpireTime: new Date(now + 2 * 60_000).toISOString(), // window to actually connect
-      liveConnectConstraints: {
-        model: GEMINI_LIVE_MODEL,
-        config: {
-          responseModalities: ['AUDIO'],
-          temperature: 0.3,
-          systemInstruction: CONTEXT_PACK + suffix + VOICE_SUFFIX,
-          tools: [tool],
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-        },
-      },
-      httpOptions: { apiVersion: 'v1alpha' },
-    },
+/**
+ * Mint a signed session for the Helix Pipecat voice service — the SAME voice
+ * mindlynx.ai speaks with (Deepgram STT → LLM → Cartesia TTS over WebRTC),
+ * rather than Gemini Live's native audio, which cannot speak a Cartesia voice
+ * and so gave these three sites a different Vera to the one on MindLynx.
+ *
+ * The instructions travel INSIDE the signed blob, so the persona stays owned by
+ * this server even though the offer endpoint is public: the voice service
+ * refuses anything it cannot verify (`verify_website_session`).
+ */
+function mintVoiceSession(site = 'helix') {
+  const resolved = siteOf(site);
+  const { suffix } = SITES[resolved];
+  const today = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/London',
   });
-  return token.name;
+  const payload = Buffer.from(
+    JSON.stringify({
+      instructions: `${CONTEXT_PACK}${suffix}${VOICE_SUFFIX}\n\nToday is ${today}.`,
+      voiceId: VERA_VOICE_ID,
+      voiceSpeed: VERA_VOICE_SPEED,
+      site: SITE_HOSTS[resolved],
+      keyterms: ['MindLynx', 'Helix', 'Albion', 'Cortex', 'Tachyon', 'Pulse', 'Metis', 'Vera'],
+      exp: Math.floor(Date.now() / 1000) + 120, // the window to connect, not the session length
+    }),
+  ).toString('base64url');
+  const sig = createHmac('sha256', VOICE_OFFER_SECRET).update(payload).digest('hex');
+  return { connectUrl: VOICE_CONNECT_URL, website: { payload, sig } };
 }
 
 /* ---------------- http helpers ---------------- */
@@ -417,7 +438,7 @@ const CSP = [
   "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net blob:",
   "style-src 'unsafe-inline' https://fonts.googleapis.com",
   'font-src https://fonts.gstatic.com',
-  "connect-src 'self' https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://cdn.jsdelivr.net",
+  "connect-src 'self' https://app.helix.work wss://app.helix.work https://cdn.jsdelivr.net",
   "img-src 'self' data:",
   'worker-src blob:',
   "frame-ancestors 'none'",
@@ -501,12 +522,12 @@ async function handleVoiceToken(req, res) {
   const limited = rateLimit('voice', ip);
   if (!limited.ok) return json(res, 429, { ok: false, error: 'Too many requests.' }, { 'Retry-After': String(limited.retryAfter) });
   const body = await readJson(req);
-  if (!GEMINI_API_KEY) return json(res, 503, { degrade: 'webspeech' });
+  if (!VOICE_OFFER_SECRET) return json(res, 503, { degrade: 'webspeech' });
   try {
-    const token = await mintVoiceToken(body.site); // voice is framed by the same site as the page
-    return json(res, 200, { token, model: GEMINI_LIVE_MODEL });
+    // Voice is framed by the same site as the page: same pack, same SITE suffix.
+    return json(res, 200, mintVoiceSession(body.site));
   } catch (err) {
-    console.error('voice token mint failed:', err?.message || err);
+    console.error('voice session mint failed:', err?.message || err);
     return json(res, 503, { degrade: 'webspeech' }); // ladder: page falls to Web Speech
   }
 }
@@ -552,7 +573,7 @@ export const server = createServer(async (req, res) => {
       return res.end(img);
     }
     if (req.method === 'GET' && path === '/api/health') {
-      return json(res, 200, { ok: true, agent: !!GEMINI_API_KEY, voice: !!GEMINI_API_KEY });
+      return json(res, 200, { ok: true, agent: !!GEMINI_API_KEY, voice: !!VOICE_OFFER_SECRET });
     }
     if (req.method === 'POST' && path === '/api/waitlist') return await handleWaitlist(req, res);
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);
@@ -575,7 +596,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   server.listen(PORT, () => {
     console.log(`helix.work listening on http://localhost:${PORT}`);
     console.log(`  agent: ${GEMINI_API_KEY ? GEMINI_MODEL : 'scripted (no GEMINI_API_KEY)'}`);
-    console.log(`  voice: ${GEMINI_API_KEY ? GEMINI_LIVE_MODEL : 'Web Speech fallback'}`);
+    console.log(`  voice: ${VOICE_OFFER_SECRET ? `Pipecat · Vera (${VERA_VOICE_ID.slice(0, 8)}… @ ${VERA_VOICE_SPEED})` : 'Web Speech fallback (no VOICE_OFFER_SECRET)'}`);
     console.log(`  data:  ${DATA_DIR}`);
   });
 }

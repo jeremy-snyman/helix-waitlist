@@ -302,11 +302,26 @@
     c.addEventListener('click', function () { ask(c.textContent); });
   });
 
-  /* --------------- voice ladder: Gemini Live -> Web Speech ---------------- */
+  /* ------------- voice: the Helix Pipecat service (rung 1) ----------------
+     Vera speaks here exactly as she does on mindlynx.ai — Deepgram STT, an LLM,
+     and Cartesia TTS in Lucy's voice, over WebRTC. This replaced Gemini Live,
+     whose native audio cannot speak a Cartesia voice and so gave these sites a
+     different Vera to the one on MindLynx. Her instructions are minted and
+     SIGNED by our server (`/api/voice/token`); the voice service refuses any
+     session it cannot verify, so the persona is never client-authored. */
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  var GENAI_CDN = 'https://cdn.jsdelivr.net/npm/@google/genai@2.11.0/+esm'; /* pinned; keep in step with package.json */
-  var WORKLET_SRC = "class P extends AudioWorkletProcessor{process(inputs){var ch=inputs[0][0];if(ch)this.port.postMessage(ch.slice(0));return true;}}registerProcessor('pcm-forwarder',P);";
-  var live = { session: null, ctxIn: null, ctxOut: null, stream: null, sources: [], cursor: 0, timer: null, userBub: null, agentBub: null };
+  /* Pinned, and kept in step with mindlynx-website's package.json so both
+     front doors run the identical client. */
+  var CDN = 'https://cdn.jsdelivr.net/npm/';
+  var PIPECAT_CLIENT = CDN + '@pipecat-ai/client-js@1.13.0/+esm';
+  var PIPECAT_TRANSPORT = CDN + '@pipecat-ai/small-webrtc-transport@1.10.6/+esm';
+  var DAILY_JS = CDN + '@daily-co/daily-js@0.90.0/+esm';
+  /** A spoken turn is done when the agent has been quiet this long. */
+  var TURN_SETTLE_MS = 900;
+  var live = {
+    client: null, call: null, audioEl: null, timer: null,
+    userBub: null, botBub: null, botText: '', settle: null, connBub: null,
+  };
 
   function vlog(stage, detail) {
     try {
@@ -317,166 +332,141 @@
       });
     } catch (e) {}
   }
-  function b64FromBuf(buf) { var b = new Uint8Array(buf), s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s); }
-  function playPcm(b64) {
-    if (!live.ctxOut) return;
-    var bin = atob(b64), bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    var i16 = new Int16Array(bytes.buffer), f32 = new Float32Array(i16.length);
-    for (var j = 0; j < i16.length; j++) f32[j] = i16[j] / 32768;
-    var ab = live.ctxOut.createBuffer(1, f32.length, 24000);
-    ab.getChannelData(0).set(f32);
-    var s = live.ctxOut.createBufferSource();
-    s.buffer = ab;
-    s.connect(live.dest || live.ctxOut.destination);
-    live.cursor = Math.max(live.ctxOut.currentTime, live.cursor);
-    s.start(live.cursor);
-    live.cursor += ab.duration;
-    live.sources.push(s);
-    s.onended = function () { var k = live.sources.indexOf(s); if (k > -1) live.sources.splice(k, 1); };
+
+  /** TTS sometimes streams the same sentence twice; show it once. */
+  function collapseRepeatedSentences(text) {
+    var parts = String(text).split(/(?<=[.!?])\s+/);
+    var out = [];
+    for (var i = 0; i < parts.length; i++) {
+      if (!out.length || out[out.length - 1].trim() !== parts[i].trim()) out.push(parts[i]);
+    }
+    return out.join(' ');
   }
-  function stopPlayback() { live.sources.forEach(function (s) { try { s.stop(); } catch (e) {} }); live.sources = []; live.cursor = 0; }
-  function transcript(role, text) {
-    var key = role === 'user' ? 'userBub' : 'agentBub';
-    if (!live[key]) live[key] = el('', role);
-    live[key].textContent += text;
-    chat.scrollTop = chat.scrollHeight;
-  }
-  function finaliseTranscripts() {
+
+  function finaliseUser() {
     if (live.userBub && live.userBub.textContent) history.push({ role: 'user', content: live.userBub.textContent });
-    if (live.agentBub && live.agentBub.textContent) history.push({ role: 'agent', content: live.agentBub.textContent });
-    live.userBub = live.agentBub = null;
+    live.userBub = null;
   }
-  function onLiveMessage(msg) {
-    if (msg.data) playPcm(msg.data);
-    var sc = msg.serverContent;
-    if (sc) {
-      if (sc.interrupted) stopPlayback();
-      if (sc.inputTranscription && sc.inputTranscription.text) transcript('user', sc.inputTranscription.text);
-      if (sc.outputTranscription && sc.outputTranscription.text) transcript('agent', sc.outputTranscription.text);
-      if (sc.turnComplete) finaliseTranscripts();
-    }
-    if (msg.toolCall && msg.toolCall.functionCalls) {
-      msg.toolCall.functionCalls.forEach(function (fc) {
-        if (fc.name !== 'show_signup_form') return;
-        var a = fc.args || {};
-        showForm({
-          intent: FORMS[a.intent] ? a.intent : DEFAULT_INTENT,
-          name: a.name, email: a.email, organisation: a.organisation,
-          sector: a.sector, years: a.years, role: a.role, products: a.products,
-        });
-        try { live.session.sendToolResponse({ functionResponses: [{ id: fc.id, name: fc.name, response: { result: 'form_shown_awaiting_human_click' } }] }); } catch (e) {}
-      });
-    }
-    if (msg.goAway) stopLive('Voice session ending. Tap the mic to reconnect.');
+  function finaliseBot() {
+    if (live.settle) { clearTimeout(live.settle); live.settle = null; }
+    if (live.botBub && live.botBub.textContent) history.push({ role: 'agent', content: live.botBub.textContent });
+    live.botBub = null;
+    live.botText = '';
   }
+
   function stopLive(notice) {
     if (live.timer) { clearTimeout(live.timer); live.timer = null; }
+    if (live.settle) { clearTimeout(live.settle); live.settle = null; }
     if (live.connBub) { live.connBub.textContent = 'Voice did not connect this time.'; live.connBub = null; }
-    stopPlayback();
-    finaliseTranscripts();
-    if (live.session) { var s = live.session; live.session = null; try { s.close(); } catch (e) {} }
-    if (live.stream) { live.stream.getTracks().forEach(function (t) { t.stop(); }); live.stream = null; }
-    if (live.audioEl) { try { live.audioEl.pause(); } catch (e) {} live.audioEl = null; live.dest = null; }
-    if (live.ctxIn) { live.ctxIn.close().catch(function () {}); live.ctxIn = null; }
-    if (live.ctxOut) { live.ctxOut.close().catch(function () {}); live.ctxOut = null; }
+    finaliseUser();
+    finaliseBot();
+    if (live.client) { var c = live.client; live.client = null; try { c.disconnect(); } catch (e) {} }
+    if (live.audioEl) { try { live.audioEl.pause(); } catch (e) {} live.audioEl.srcObject = null; live.audioEl = null; }
+    live.call = null;
     mic.classList.remove('rec');
     refreshVoiceUi();
     if (notice) agentSay(notice, true);
   }
+
   function refreshVoiceUi() {
-    if (live.session) toggle.textContent = 'Voice: live · stop';
+    if (live.client) toggle.textContent = 'Voice: live · stop';
     else if (LIVE.voice) toggle.textContent = 'Voice: start';
     else toggle.textContent = 'Voice: ' + (voiceOn ? 'on' : 'off');
   }
-  function acquireMic() {
-    var base = { channelCount: 1, echoCancellation: true, noiseSuppression: true };
-    return navigator.mediaDevices.getUserMedia({ audio: base }).then(function (stream) {
-      var isMobile = (navigator.userAgentData && navigator.userAgentData.mobile) || /iPhone|iPad|Android|Mobi/i.test(navigator.userAgent);
-      if (isMobile) return stream; /* on a phone the phone mic is the right mic */
-      var label = (stream.getAudioTracks()[0] || {}).label || '';
-      if (/headphone|headset|airpod|earbud/i.test(label)) return stream; /* a worn mic is the best mic */
-      if (!/phone|ipad|continuity/i.test(label)) return stream;
-      /* macOS Continuity has hijacked the default input with a nearby phone */
-      return navigator.mediaDevices.enumerateDevices().then(function (devs) {
-        var ins = devs.filter(function (d) { return d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default'; });
-        var builtin = ins.filter(function (d) { return /built-?in|macbook|internal/i.test(d.label); })[0]
-          || ins.filter(function (d) { return !/phone|ipad|continuity/i.test(d.label); })[0];
-        if (!builtin) return stream;
-        stream.getTracks().forEach(function (t) { t.stop(); });
-        return navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: builtin.deviceId }, channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-      });
-    });
-  }
+
   function startLive() {
     mic.classList.add('rec');
     toggle.textContent = 'Voice: connecting…';
-    /* the output context is created synchronously inside the click: made after an
-       await, Chrome may treat the gesture as expired and start it suspended = silent Vera */
-    live.ctxOut = new AudioContext({ sampleRate: 24000 });
-    /* play through an <audio> element so Chrome's echo canceller sees it; raw Web
-       Audio output loops back into the mic and Vera interrupts herself */
-    live.dest = live.ctxOut.createMediaStreamDestination();
-    live.audioEl = document.createElement('audio');
-    live.audioEl.srcObject = live.dest.stream;
-    live.audioEl.play().catch(function () {});
     live.connBub = el('<span class="typing"><i></i><i></i><i></i></span>&nbsp; Connecting you to Vera&hellip;', 'agent');
     vlog('start', { secure: window.isSecureContext });
-    /* mic permission first: a denial must not burn a rate-limited token mint */
-    return acquireMic()
-      .then(function (stream) {
-        live.stream = stream;
-        return fetch('/api/voice/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ site: SITE }) });
-      })
+    return fetch('/api/voice/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ site: SITE }),
+    })
       .then(function (r) { if (!r.ok) throw new Error('mint ' + r.status); return r.json(); })
-      .then(function (d) {
-        return import(GENAI_CDN).then(function (mod) {
-          if (live.ctxOut.state === 'suspended') live.ctxOut.resume().catch(function () {});
-          var ai = new mod.GoogleGenAI({ apiKey: d.token, httpOptions: { apiVersion: 'v1alpha' } });
-          return ai.live.connect({
-            model: d.model,
-            config: { responseModalities: ['AUDIO'] }, /* everything else is locked in the token */
-            callbacks: {
-              onmessage: onLiveMessage,
-              onerror: function () { stopLive('Voice hit a snag. Press Voice to try again, or just type.'); },
-              onclose: function (e) {
-                var reason = String((e && e.reason) || '');
-                if (live.session) {
-                  stopLive(/exhaust|quota/i.test(reason)
-                    ? 'Vera’s voice is over its usage limit for the moment. Give it a minute and press Voice again, or just type.'
-                    : undefined);
-                }
-              },
+      .then(function (session) {
+        vlog('mint-ok', {});
+        return Promise.all([import(PIPECAT_CLIENT), import(PIPECAT_TRANSPORT), import(DAILY_JS)])
+          .then(function (mods) { return { session: session, cj: mods[0], tj: mods[1], dj: mods[2] }; });
+      })
+      .then(function (ctx) {
+        vlog('sdk-ok', {});
+        /* Create the Daily call ourselves so `useDevicePreferenceCookies:false` is
+           pinned at the one place every entry path reads config from. Left to its
+           own devices Daily restores whichever mic was used LAST — a nearby iPhone
+           over Continuity, in the worst case — and Vera goes deaf with no error. */
+        var Daily = ctx.dj.default || ctx.dj;
+        var call = (Daily.getCallInstance && Daily.getCallInstance()) || Daily.createCallObject();
+        live.call = call;
+        var originalLoad = call.load.bind(call);
+        call.load = function (props) {
+          var next = props || {};
+          next.dailyConfig = Object.assign({}, next.dailyConfig || {}, { useDevicePreferenceCookies: false });
+          return originalLoad(next);
+        };
+        /* A television in the room is speech; strip it before the track leaves. */
+        try { void call.updateInputSettings({ audio: { processor: { type: 'noise-cancellation' } } }); } catch (e) {}
+        try { void call.setInputDevicesAsync({ audioDeviceId: 'default' }); } catch (e) {}
+
+        var client = new ctx.cj.PipecatClient({
+          transport: new ctx.tj.SmallWebRTCTransport(),
+          enableMic: true,
+          enableCam: false,
+          callbacks: {
+            onTrackStarted: function (track) {
+              if (track.kind !== 'audio') return;
+              if (!live.audioEl) { live.audioEl = document.createElement('audio'); live.audioEl.autoplay = true; }
+              live.audioEl.srcObject = new MediaStream([track]);
+              void live.audioEl.play().catch(function () {});
+              vlog('audio-attached', {});
             },
-          });
+            onUserTranscript: function (data) {
+              if (!data || !data.final || !data.text) return;
+              if (live.botBub) finaliseBot(); /* you speaking ends the agent's turn */
+              if (!live.userBub) live.userBub = el('', 'user');
+              live.userBub.textContent = (live.userBub.textContent ? live.userBub.textContent + ' ' : '') + String(data.text).trim();
+              chat.scrollTop = chat.scrollHeight;
+            },
+            onBotTtsText: function (data) {
+              if (!data || !data.text) return;
+              if (!live.botBub) { finaliseUser(); live.botBub = el('', 'agent'); live.botText = ''; }
+              live.botText += (live.botText ? ' ' : '') + data.text;
+              live.botBub.textContent = collapseRepeatedSentences(live.botText);
+              chat.scrollTop = chat.scrollHeight;
+            },
+            onBotStoppedSpeaking: function () {
+              /* NOT the end of the turn — each streamed sentence lands here. */
+              if (live.settle) clearTimeout(live.settle);
+              live.settle = setTimeout(finaliseBot, TURN_SETTLE_MS);
+            },
+            onServerMessage: function (data) {
+              if (!data || data.type !== 'show_signup_form') return;
+              showForm({
+                intent: FORMS[data.intent] ? data.intent : DEFAULT_INTENT,
+                name: data.name, email: data.email, organisation: data.organisation,
+                sector: data.sector, years: data.years, role: data.role, products: data.products,
+              });
+            },
+            onDisconnected: function () {
+              if (live.client) stopLive('Voice session ended. Press Voice to reconnect, or just type.');
+            },
+          },
+        });
+        live.client = client;
+        /* `webrtcRequestParams`, NOT a bare {endpoint}: the bare form is the
+           deprecated start-bot flow and 400s against this server. */
+        return client.connect({
+          webrtcRequestParams: { endpoint: ctx.session.connectUrl, requestData: { website: ctx.session.website } },
         });
       })
-      .then(function (session) {
-        live.session = session;
-        live.ctxIn = new AudioContext({ sampleRate: 16000 });
-        var srcNode = live.ctxIn.createMediaStreamSource(live.stream);
-        return live.ctxIn.audioWorklet
-          .addModule(URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'text/javascript' })))
-          .then(function () {
-            var node = new AudioWorkletNode(live.ctxIn, 'pcm-forwarder');
-            node.port.onmessage = function (e) {
-              if (!live.session) return;
-              var f32 = e.data, i16 = new Int16Array(f32.length);
-              for (var i = 0; i < f32.length; i++) { var v = Math.max(-1, Math.min(1, f32[i])); i16[i] = v < 0 ? v * 0x8000 : v * 0x7FFF; }
-              try { live.session.sendRealtimeInput({ audio: { data: b64FromBuf(i16.buffer), mimeType: 'audio/pcm;rate=16000' } }); } catch (e2) {}
-            };
-            srcNode.connect(node);
-            refreshVoiceUi();
-            if (live.connBub) { live.connBub.textContent = 'You are through to Vera.'; live.connBub = null; }
-            /* nudge Vera to open: one short greeting, then wait */
-            try {
-              live.session.sendClientContent({
-                turns: [{ role: 'user', parts: [{ text: '(The visitor has just connected by voice. Greet them in one short sentence, ask whether you may use their first name and what it is, then wait.)' }] }],
-                turnComplete: true,
-              });
-            } catch (e) {}
-            live.timer = setTimeout(function () { stopLive('Voice session ended (five minute cap). Tap the mic to carry on.'); }, 300000);
-          });
+      .then(function () {
+        vlog('connected', {});
+        refreshVoiceUi();
+        if (live.connBub) { live.connBub.textContent = 'You are through to Vera.'; live.connBub = null; }
+        live.timer = setTimeout(function () {
+          stopLive('Voice session ended (five minute cap). Tap the mic to carry on.');
+        }, 300000);
       });
   }
 
@@ -498,7 +488,7 @@
     rec.start();
   }
   function voiceFlow() {
-    if (live.session) { stopLive(); return; }
+    if (live.client) { stopLive(); return; }
     if (LIVE.voice && window.isSecureContext) {
       startLive().catch(function (err) {
         vlog('fail', { name: err && err.name, msg: String((err && err.message) || err).slice(0, 200) });
@@ -514,7 +504,7 @@
   mic.addEventListener('click', voiceFlow);
   toggle.addEventListener('click', function () {
     /* with live voice available this button IS the voice control; otherwise it toggles spoken replies */
-    if (live.session || (LIVE.voice && window.isSecureContext)) { voiceFlow(); return; }
+    if (live.client || (LIVE.voice && window.isSecureContext)) { voiceFlow(); return; }
     voiceOn = !voiceOn;
     refreshVoiceUi();
     if (!voiceOn && window.speechSynthesis) speechSynthesis.cancel();
