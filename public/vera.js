@@ -408,15 +408,14 @@
   }
 
   /**
-   * House style: no em dash or en dash reaches the panel. The typed path is
-   * cleaned server-side, but the SPOKEN transcript arrives straight from the voice
-   * service and never passes through us, so it is cleaned here too. Mirrors
-   * `deslop` in server.mjs and on mindlynx.ai.
+   * House style: no EM dash reaches the panel. The typed path is cleaned
+   * server-side, but the SPOKEN transcript arrives straight from the voice service
+   * and never passes through us, so it is cleaned here too. Mirrors `deslop` in
+   * server.mjs and on mindlynx.ai. The en dash is left alone: it belongs in a range.
    */
   function deslop(text) {
     return String(text)
       .replace(/\s*\u2014\s*/g, ', ')
-      .replace(/(\w)\s*\u2013\s*(\w)/g, '$1, $2')
       .replace(/,\s*,/g, ',')
       .replace(/,\s*([.!?;:])/g, '$1')
       .replace(/\s+,/g, ',');
