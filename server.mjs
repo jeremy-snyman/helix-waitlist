@@ -180,6 +180,24 @@ export function validateSignup(body) {
 const FORBIDDEN = ['justin', 'seillen', 'ionos', 'tui', 'zoopla', 'ohme', 'eca'];
 const FORBIDDEN_RE = new RegExp(`\\b(${FORBIDDEN.join('|')})\\b`, 'gi');
 
+/**
+ * Vera never uses an em dash or en dash. Models reach for them constantly and the
+ * prompt rule only mostly holds, so it has this backstop behind it, the same
+ * belt-and-braces as the forbidden-names filter above. A comma is the substitution
+ * that is always grammatical where a dash was doing the work.
+ *
+ * Same name and same behaviour as mindlynx.ai's `deslop`, so one house style is
+ * enforced the one way across every companion.
+ */
+export function deslop(text) {
+  return String(text)
+    .replace(/\s*\u2014\s*/g, ', ')          // "A — B" and "A—B" both become "A, B"
+    .replace(/(\w)\s*\u2013\s*(\w)/g, '$1, $2') // an en dash between words, likewise
+    .replace(/,\s*,/g, ',')                   // never double up on an existing comma
+    .replace(/,\s*([.!?;:])/g, '$1')          // and never leave ", ." behind
+    .replace(/\s+,/g, ',');
+}
+
 export function redact(text) {
   const found = [];
   const out = String(text).replace(FORBIDDEN_RE, (m) => {
@@ -197,6 +215,7 @@ const TOOL_SUFFIX = `
 OUTPUT RULES
 
 - Reply in plain conversational text. No markdown, no HTML, no bullet lists unless asked.
+- Never use an em dash or en dash. Commas, full stops and parentheses do that work.
 - Keep replies to a few sentences.
 - The page has already greeted the visitor in your voice: it introduced you as Vera and asked whether you may call them by their first name and what it is. Do not repeat that introduction. If their first message reads as a bare name or an answer to that question, thank them, use the name from then on, and invite their first question.
 - Sign-up details are collected one per turn: ask for the full name, wait for the reply, then ask for the work email, wait for the reply. If the visitor gives several details in one message, accept them all without re-asking.
@@ -363,6 +382,7 @@ VOICE RULES
 - When they give you their name, thank them warmly and immediately ask how you can help, for example what they would like to know about Helix.
 - Ask before you explain. Prefer a short answer followed by a question over a long answer.
 - No lists, no headings, no formatting of any kind.
+- Never use an em dash or en dash, spoken or written. Commas, full stops and parentheses do that work.
 - Sign-up details are collected one per turn: ask for the full name, wait for the answer, then ask for the work email, and wait again. Never ask for two details in one breath. If the visitor offers several details in one go, accept them all without re-asking.
 - Call the show_signup_form tool only once the visitor has actually spoken both a name and an email. Never fill it with a guessed or example value; if the email is missing, ask for it.
 - After the tool call, tell them the form is on their screen and the button press is theirs to make.
@@ -507,7 +527,7 @@ async function handleAgent(req, res) {
   if (!message) return json(res, 400, { ok: false, error: 'A message is required.' });
   try {
     const { reply, action } = await callGemini(message, body.history, body.site);
-    const filtered = redact(reply);
+    const filtered = redact(deslop(reply));
     if (filtered.found.length) {
       appendRecord('redactions.ndjson', { ts: new Date().toISOString(), tokens: filtered.found, ip }).catch(() => {});
     }

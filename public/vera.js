@@ -7,9 +7,8 @@
 
    The site name picks the greeting, the chips and the forms she may put up; the
    server picks what she leads with and which tool she is given (SITES in
-   server.mjs), so the knowledge pack stays single-sourced. index.html keeps its
-   own inline copy for now — it carries a bespoke scripted brain for the
-   no-API-key case, which nothing else needs. Converging the two is tracked.
+   server.mjs), so the knowledge pack stays single-sourced. All three pages mount
+   THIS companion: there is no inline copy left anywhere. Converging the two is tracked.
 
    Everything here is deliberately ES5-flavoured and framework-free, like the
    pages it joins. It inherits each page's palette through the shared custom
@@ -26,7 +25,7 @@
   var SITES = {
     helix: {
       who: 'Vera · Helix front of house',
-      greeting: "Hello. I'm <b>Vera</b>, Helix's front of house. Ask me what Helix is, what the products do, or who it is for — and if you like what you hear I can put you on the waiting list, though the final button press is always yours. What brought you along?",
+      greeting: "Hello. I'm <b>Vera</b>, Helix's front of house. Ask me what Helix is, what the products do, or who it is for. If you like what you hear I can put you on the waiting list, though the final button press is always yours. What brought you along?",
       chips: ['What is Helix?', 'What does sovereign mean here?', 'How do I hire an agent?', 'What can developers reuse?', 'Put me on the list'],
       placeholder: 'Ask Helix anything...',
       launcher: 'Ask',
@@ -356,9 +355,9 @@
       .then(function (r) { if (!r.ok) throw new Error('agent ' + r.status); return r.json(); })
       .then(function (d) {
         if (!d.reply) throw new Error('empty');
-        t.textContent = d.reply; /* live model output is untrusted: never innerHTML */
+        t.textContent = deslop(d.reply); /* live model output is untrusted: never innerHTML */
         chat.scrollTop = chat.scrollHeight;
-        history.push({ role: 'agent', content: d.reply });
+        history.push({ role: 'agent', content: deslop(d.reply) });
         speak(d.reply);
         if (d.action && d.action.type === 'show_signup_form') {
           lead = d.action;
@@ -406,6 +405,21 @@
         body: JSON.stringify({ stage: SITE + ':' + stage, detail: detail || {} }),
       });
     } catch (e) {}
+  }
+
+  /**
+   * House style: no em dash or en dash reaches the panel. The typed path is
+   * cleaned server-side, but the SPOKEN transcript arrives straight from the voice
+   * service and never passes through us, so it is cleaned here too. Mirrors
+   * `deslop` in server.mjs and on mindlynx.ai.
+   */
+  function deslop(text) {
+    return String(text)
+      .replace(/\s*\u2014\s*/g, ', ')
+      .replace(/(\w)\s*\u2013\s*(\w)/g, '$1, $2')
+      .replace(/,\s*,/g, ',')
+      .replace(/,\s*([.!?;:])/g, '$1')
+      .replace(/\s+,/g, ',');
   }
 
   /** TTS sometimes streams the same sentence twice; show it once. */
@@ -500,13 +514,13 @@
               if (!data || !data.final || !data.text) return;
               if (live.botBub) finaliseBot(); /* you speaking ends the agent's turn */
               if (!live.userBub) live.userBub = el('', 'user');
-              live.userBub.textContent = (live.userBub.textContent ? live.userBub.textContent + ' ' : '') + String(data.text).trim();
+              live.userBub.textContent = (live.userBub.textContent ? live.userBub.textContent + ' ' : '') + deslop(data.text).trim();
               chat.scrollTop = chat.scrollHeight;
             },
             onBotTtsText: function (data) {
               if (!data || !data.text) return;
               if (!live.botBub) { finaliseUser(); live.botBub = el('', 'agent'); live.botText = ''; }
-              live.botText += (live.botText ? ' ' : '') + data.text;
+              live.botText += (live.botText ? ' ' : '') + deslop(data.text);
               live.botBub.textContent = collapseRepeatedSentences(live.botText);
               chat.scrollTop = chat.scrollHeight;
             },
