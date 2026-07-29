@@ -16,27 +16,37 @@
    properties (--line, --panel, --lime, --mono, --muted, --bg, --text).
    ========================================================================== */
 (function () {
-  var mount = document.querySelector('[data-vera]');
-  if (!mount) return;
-
-  var SITE = mount.getAttribute('data-vera') || 'helix';
+  /* Which front door is this? The script tag says so; a `[data-vera]` element is
+     still honoured for the inline form this widget started as. */
+  var tag = document.querySelector('script[src*="vera.js"][data-site]');
+  var legacy = document.querySelector('[data-vera]');
+  var SITE = (tag && tag.getAttribute('data-site')) || (legacy && legacy.getAttribute('data-vera')) || 'helix';
 
   /* --------------------------- per-site wiring --------------------------- */
   var SITES = {
+    helix: {
+      who: 'Vera · Helix front of house',
+      greeting: "Hello. I'm <b>Vera</b>, Helix's front of house. Ask me what Helix is, what the products do, or who it is for — and if you like what you hear I can put you on the waiting list, though the final button press is always yours. What brought you along?",
+      chips: ['What is Helix?', 'What does sovereign mean here?', 'How do I hire an agent?', 'What can developers reuse?', 'Put me on the list'],
+      placeholder: 'Ask Helix anything...',
+      launcher: 'Ask',
+    },
     albion: {
       who: 'Vera · Albion front of house',
       greeting: "Hello. This page is an agent; I am it. My name is <b>Vera</b>. Ask me what Albion is, how it keeps sovereign work sovereign, or why it costs less over time. I can put you on the waitlist or start you on the contributor register, though the final button press will always be yours.",
       chips: ['What is Albion?', 'What does the receipt show?', 'How does sovereign work stay sovereign?', 'Why does it cost less over time?', 'Get paid for my expertise'],
       placeholder: 'Ask Albion anything...',
+      launcher: 'Ask',
     },
     cortex: {
       who: 'Vera · Cortex front of house',
       greeting: "Hello. This page is an agent; I am it. My name is <b>Vera</b>. Ask me what Cortex is, where your memory actually lives, or how developers build on it. I can put you on the waiting list too, though the final button press will always be yours.",
       chips: ['What is Cortex?', 'Where does the memory live?', 'What can developers build on it?', 'How is it sovereign?', 'Put me on the list'],
       placeholder: 'Ask Cortex anything...',
+      launcher: 'Ask',
     },
   };
-  var CFG = SITES[SITE] || SITES.albion;
+  var CFG = SITES[SITE] || SITES.helix;
 
   /* Each form names its endpoint, its fields and the record it posts. Adding a
      front door is adding an entry here and one in SITES on the server. */
@@ -87,55 +97,83 @@
   };
   var DEFAULT_INTENT = SITE === 'albion' ? 'albion_waitlist' : 'helix_waitlist';
 
-  /* ------------------------------- styles -------------------------------- */
+  /* ------------------------------- styles --------------------------------
+     A floating companion, the same shape as the one on mindlynx.ai: a round
+     launcher bottom-right that opens a panel dialog. It inherits each page's
+     palette through the shared custom properties, so Albion reads mint and
+     Helix reads lime without a per-site stylesheet. */
   var CSS = [
-    '[data-vera] .agent-shell{border:1px solid var(--line);background:var(--panel)}',
-    '[data-vera] .agent-bar{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}',
-    '[data-vera] .agent-bar .id{display:flex;align-items:center;gap:10px;font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--mono)}',
-    '[data-vera] .agent-bar .id i{width:10px;height:10px;background:var(--lime);display:inline-block}',
-    '[data-vera] .v-chat{height:440px;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}',
-    '[data-vera] .msg{max-width:88%;font-size:15px;line-height:1.55}',
-    '[data-vera] .msg.agent{color:var(--text)}',
-    '[data-vera] .msg.user{align-self:flex-end;color:var(--muted);border-right:2px solid var(--lime);padding-right:12px}',
-    '[data-vera] .msg a{color:var(--lime)}',
-    '[data-vera] .typing i{display:inline-block;width:5px;height:5px;margin-right:3px;background:var(--mono);animation:vera-blink 1.2s infinite}',
-    '[data-vera] .typing i:nth-child(2){animation-delay:.2s}[data-vera] .typing i:nth-child(3){animation-delay:.4s}',
+    '.vera{font-family:"Archivo",sans-serif}',
+    '.vera-launcher{position:fixed;z-index:50;right:24px;bottom:24px;width:60px;height:60px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--panel);border:1px solid var(--line);color:var(--text);cursor:pointer;font-family:"Archivo",sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.45);transition:transform .2s ease,border-color .2s ease}',
+    '.vera-launcher:hover{transform:translateY(-2px);border-color:var(--lime)}',
+    '.vera-launcher[hidden]{display:none}',
+    '.vera-launcher-word{font-family:"Spline Sans Mono",monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}',
+    '.vera-launcher-dot{width:7px;height:7px;border-radius:50%;background:var(--lime)}',
+    /* The panel is a <section>, and every one of these pages styles
+       `section{padding:80px 0}` for its own layout — inherited, that pushed the
+       header 80px down and cut the conversation short. Reset it here. */
+    '.vera-panel{padding:0;margin:0;position:fixed;z-index:55;right:24px;bottom:24px;width:min(420px,calc(100vw - 32px));height:min(680px,85dvh);display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);color:var(--text);box-shadow:0 24px 60px rgba(0,0,0,.55)}',
+    '.vera-panel[hidden]{display:none}',
+    '@media(max-width:640px){.vera-panel{right:8px;bottom:8px;width:calc(100vw - 16px);height:88dvh}}',
+    '.vera .agent-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);flex:none}',
+    '.vera .agent-bar .id{display:flex;align-items:center;gap:10px;font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
+    '.vera .agent-bar .id i{width:8px;height:8px;border-radius:50%;background:var(--lime);flex:none}',
+    '.vera .agent-bar .tools{display:flex;align-items:center;gap:6px;flex:none}',
+    '.vera-close{background:none;border:0;color:var(--mono);font-size:22px;line-height:1;cursor:pointer;padding:6px 10px;margin:-6px -10px -6px 0}',
+    '.vera-close:hover{color:var(--text)}',
+    '.vera .v-chat{flex:1;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}',
+    '.vera .msg{max-width:86%;font-size:15px;line-height:1.55;overflow-wrap:break-word}',
+    '.vera .msg.agent{color:var(--text)}',
+    '.vera .msg.agent b{color:var(--lime);font-weight:600}',
+    '.vera .msg.agent a{color:var(--lime)}',
+    '.vera .msg.user{align-self:flex-end;color:var(--muted);border-right:2px solid var(--lime);padding-right:12px}',
+    '.vera .typing i{display:inline-block;width:5px;height:5px;margin-right:3px;background:var(--mono);animation:vera-blink 1.2s infinite}',
+    '.vera .typing i:nth-child(2){animation-delay:.2s}.vera .typing i:nth-child(3){animation-delay:.4s}',
     '@keyframes vera-blink{0%,60%,100%{opacity:.25}30%{opacity:1}}',
-    '[data-vera] .mini-form{display:grid;gap:10px;margin-top:10px;min-width:280px}',
-    '[data-vera] .mini-form input[type=text],[data-vera] .mini-form input[type=email],[data-vera] .mini-form select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);font-family:"Archivo",sans-serif;font-size:14px;padding:10px 12px;outline:none}',
-    '[data-vera] .mini-form input:focus,[data-vera] .mini-form select:focus{border-color:var(--lime)}',
-    '[data-vera] .mini-form .mf-checks{display:grid;grid-template-columns:1fr 1fr;gap:6px}',
-    '[data-vera] .mini-form label.ck{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);border:1px solid var(--line);padding:8px 10px;cursor:pointer}',
-    '[data-vera] .mini-form label.ck input{accent-color:var(--lime)}',
-    '[data-vera] .mini-form label.consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted)}',
-    '[data-vera] .mini-form label.consent input{accent-color:var(--lime);margin-top:3px}',
-    '[data-vera] .v-chips{display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px}',
-    '[data-vera] .chip{font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.06em;border:1px solid var(--line);color:var(--muted);background:none;padding:8px 12px;cursor:pointer}',
-    '[data-vera] .chip:hover{border-color:var(--lime);color:var(--text)}',
-    '[data-vera] .agent-input{display:flex;border-top:1px solid var(--line)}',
-    '[data-vera] .agent-input button.icon{width:54px;border:none;border-right:1px solid var(--line);background:none;color:var(--mono);cursor:pointer;font-size:18px}',
-    '[data-vera] .agent-input button.icon:hover{color:var(--lime)}',
-    '[data-vera] .agent-input button.icon.live{color:var(--lime)}',
-    '[data-vera] .agent-input button.icon.rec{color:var(--pink,#FF3D8A)}',
-    '[data-vera] .agent-input input{flex:1;background:none;border:none;color:var(--text);font-family:"Archivo",sans-serif;font-size:15px;padding:16px 18px;outline:none}',
-    '[data-vera] .agent-input button.send{border:none;border-left:1px solid var(--line);background:none;color:var(--text);font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;padding:0 22px;cursor:pointer}',
-    '[data-vera] .agent-input button.send:hover{background:var(--lime);color:#04070D}',
-    '[data-vera] .v-note{margin-top:12px;font-size:13px;color:var(--mono)}',
-    '[data-vera] .v-btn{font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--line);color:var(--text);background:none;padding:10px 14px;cursor:pointer}',
-    '[data-vera] .v-btn:hover{border-color:var(--lime)}',
-    '[data-vera] .v-btn.primary{background:var(--lime);border-color:var(--lime);color:#04070D}',
-    '[data-vera] .v-btn[disabled]{opacity:.55;cursor:default}',
+    '.vera .mini-form{display:grid;gap:10px;margin-top:10px}',
+    '.vera .mini-form input[type=text],.vera .mini-form input[type=email],.vera .mini-form select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);font-family:"Archivo",sans-serif;font-size:14px;padding:10px 12px;outline:none;border-radius:0;appearance:none;-webkit-appearance:none}',
+    '.vera .mini-form input:focus,.vera .mini-form select:focus{border-color:var(--lime)}',
+    '.vera .mini-form .mf-checks{display:grid;grid-template-columns:1fr 1fr;gap:6px}',
+    '.vera .mini-form label.ck{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);border:1px solid var(--line);padding:8px 10px;cursor:pointer}',
+    '.vera .mini-form label.ck input{accent-color:var(--lime)}',
+    '.vera .mini-form label.consent{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted)}',
+    '.vera .mini-form label.consent input{accent-color:var(--lime);margin-top:3px}',
+    '.vera .v-chips{display:flex;flex-wrap:wrap;gap:8px;padding:0 18px 14px;flex:none}',
+    '.vera .chip{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.06em;border:1px solid var(--line);color:var(--muted);background:none;padding:7px 11px;cursor:pointer}',
+    '.vera .chip:hover{border-color:var(--lime);color:var(--text)}',
+    '.vera .agent-input{display:flex;border-top:1px solid var(--line);flex:none}',
+    '.vera .agent-input button.icon{width:50px;border:none;border-right:1px solid var(--line);background:none;color:var(--mono);cursor:pointer;font-size:16px}',
+    '.vera .agent-input button.icon:hover{color:var(--lime)}',
+    '.vera .agent-input button.icon.live{color:var(--lime)}',
+    '.vera .agent-input button.icon.rec{color:var(--pink,#FF3D8A)}',
+    '.vera .agent-input input{flex:1;min-width:0;background:none;border:none;color:var(--text);font-family:"Archivo",sans-serif;font-size:15px;padding:15px 16px;outline:none}',
+    '.vera .agent-input button.send{border:none;border-left:1px solid var(--line);background:none;color:var(--text);font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:0 18px;cursor:pointer}',
+    '.vera .agent-input button.send:hover{background:var(--lime);color:#04070D}',
+    '.vera .v-btn{font-family:"Spline Sans Mono",monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--line);color:var(--text);background:none;padding:9px 12px;cursor:pointer}',
+    '.vera .v-btn:hover{border-color:var(--lime)}',
+    '.vera .v-btn.primary{background:var(--lime);border-color:var(--lime);color:#04070D}',
+    '.vera .v-btn[disabled]{opacity:.55;cursor:default}',
   ].join('\n');
   var styleEl = document.createElement('style');
   styleEl.textContent = CSS;
   document.head.appendChild(styleEl);
 
   /* ------------------------------- markup -------------------------------- */
-  mount.innerHTML =
-    '<div class="agent-shell">'
-    + '<div class="agent-bar"><span class="id"><i></i>' + CFG.who + '</span>'
-    + '<div class="tools"><button class="v-btn" id="v-toggle" type="button">Voice: off</button></div></div>'
-    + '<div class="v-chat" id="v-chat" aria-live="polite" aria-label="Conversation with Vera"></div>'
+  var root = document.createElement('div');
+  root.className = 'vera';
+  root.innerHTML =
+    '<button class="vera-launcher" id="vera-launcher" type="button" aria-haspopup="dialog"'
+    + ' aria-expanded="false" aria-label="Ask Vera" hidden>'
+    + '<span class="vera-launcher-dot" aria-hidden="true"></span>'
+    + '<span class="vera-launcher-word">' + (CFG.launcher || 'Ask') + '</span>'
+    + '</button>'
+    + '<section class="vera-panel" id="vera-panel" role="dialog" aria-modal="false"'
+    + ' aria-label="Conversation with Vera" hidden>'
+    + '<header class="agent-bar"><span class="id"><i aria-hidden="true"></i>' + CFG.who + '</span>'
+    + '<div class="tools"><button class="v-btn" id="v-toggle" type="button">Voice: off</button>'
+    + '<button class="vera-close" id="vera-close" type="button" aria-label="Close the conversation">&times;</button>'
+    + '</div></header>'
+    + '<div class="v-chat" id="v-chat" aria-live="polite" aria-label="Messages"></div>'
     + '<div class="v-chips" id="v-chips">'
     + CFG.chips.map(function (c) { return '<button class="chip" type="button">' + c + '</button>'; }).join('')
     + '</div>'
@@ -143,24 +181,61 @@
     + '<button class="icon" id="v-mic" type="button" title="Speak to Vera" aria-label="Speak to Vera" style="display:none">&#9679;</button>'
     + '<input id="v-q" type="text" placeholder="' + CFG.placeholder + '" autocomplete="off">'
     + '<button class="send" id="v-send" type="button">Send</button>'
-    + '</div></div>'
-    + '<p class="v-note" id="v-note">Live agent. If it ever goes quiet, you can always use the forms on this page.</p>';
+    + '</div></section>';
+  document.body.appendChild(root);
+  var mount = root;
 
   var chat = mount.querySelector('#v-chat');
   var input = mount.querySelector('#v-q');
   var mic = mount.querySelector('#v-mic');
   var toggle = mount.querySelector('#v-toggle');
-  var note = mount.querySelector('#v-note');
+  var launcher = mount.querySelector('#vera-launcher');
+  var panel = mount.querySelector('#vera-panel');
 
   var history = [];
   var lead = {};
   var LIVE = { agent: false, voice: false };
 
+  /* The launcher appears only once we know she can actually answer — an inviting
+     button that then apologises is worse than no button. Every page keeps its own
+     forms, so nothing is lost when she is offline. */
   fetch('/api/health').then(function (r) { return r.json(); }).then(function (d) {
     LIVE.agent = !!d.agent; LIVE.voice = !!d.voice;
+    if (LIVE.agent) launcher.hidden = false;
     if (LIVE.voice) { mic.style.display = ''; mic.classList.add('live'); toggle.textContent = 'Voice: start'; }
-    if (!LIVE.agent) note.textContent = 'Vera is offline just now; the forms on this page still work.';
   }).catch(function () {});
+
+  /* ---------------------------- open / close ----------------------------- */
+  var greeted = false;
+  function smallScreen() { return window.matchMedia('(max-width: 640px)').matches; }
+  function openPanel() {
+    panel.hidden = false;
+    launcher.hidden = true;
+    launcher.setAttribute('aria-expanded', 'true');
+    if (smallScreen()) document.body.style.overflow = 'hidden';
+    input.focus();
+    /* Greet on the first OPEN, not on load: a greeting nobody has asked for is
+       just noise in a panel nobody opened. */
+    if (!greeted) { greeted = true; agentSay(CFG.greeting, true); }
+  }
+  function closePanel() {
+    stopLive();
+    panel.hidden = true;
+    launcher.hidden = false;
+    launcher.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+    launcher.focus();
+  }
+  launcher.addEventListener('click', openPanel);
+  mount.querySelector('#vera-close').addEventListener('click', closePanel);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !panel.hidden) closePanel();
+  });
+  /* Anything on the page can hail her: <a href="#ask">, or data-vera-open. */
+  Array.prototype.forEach.call(
+    document.querySelectorAll('[data-vera-open], a[href="#ask"]'),
+    function (n) { n.addEventListener('click', function (e) { e.preventDefault(); openPanel(); }); },
+  );
 
   /* ------------------------------ plumbing ------------------------------- */
   function el(html, cls) {
@@ -509,6 +584,4 @@
     refreshVoiceUi();
     if (!voiceOn && window.speechSynthesis) speechSynthesis.cancel();
   });
-
-  agentSay(CFG.greeting, true);
 })();
