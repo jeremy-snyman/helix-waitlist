@@ -219,12 +219,18 @@ export function redact(text) {
 
 /* ---------------- Ask Helix text agent (Gemini) ---------------- */
 const CONTEXT_PACK = await readFile(join(ROOT, 'context-pack.md'), 'utf8').catch(() => '');
+/* The Albion question bank (v1.1, Jeremy's direction of 30 July): the questions
+   visitors actually ask, each with a model answer in Vera's voice, plus hard
+   guards. Loaded on EVERY door, because Albion questions arrive on helix.work
+   and cortex too; the SITE suffix still decides what she leads with. */
+const ALBION_BANK = await readFile(join(ROOT, 'albion-bank.md'), 'utf8').catch(() => '');
 
 const TOOL_SUFFIX = `
 
 OUTPUT RULES
 
 - Reply in plain conversational text. No markdown, no HTML, no bullet lists unless asked.
+- Be a person to talk to, not a lookup. Your default is two or three sentences and then silence; when a natural next step exists, end on it as a light question. When the question bank has a model answer, say the same things in your own words for this conversation; never recite it.
 - Never use an em dash. Commas, full stops and parentheses do that work.
 - Keep replies to a few sentences.
 - The page has already greeted the visitor in your voice: it introduced you as Vera and asked whether you may call them by their first name and what it is. Do not repeat that introduction. If their first message reads as a bare name or an answer to that question, thank them, use the name from then on, and invite their first question.
@@ -289,7 +295,7 @@ const SITES = {
 
 SITE
 
-You are on albion.helix.work, Albion's own site. Lead with Albion: one endpoint, many minds, a receipt for every answer, sovereign work kept sovereign, and the cost curve that bends down. Helix is the family Albion belongs to, not today's subject; mention it only if asked, and point to helix.work for it.
+You are on albion.helix.work, Albion's own site. Lead with Albion: a British model, open source, compound (deeper reasoning, images, voice and code, in sizes from laptop to very large), run in the cloud or entirely in the visitor's own environment, with lineage on every bit of its data, and parts landing in early September. Helix is the family Albion belongs to, not today's subject; mention it only if asked, and point to helix.work for it.
 
 Three next steps live on this page, and they are the only forms you can put up. The waitlist is early access, offered in list order, and it needs their email, their organisation and their sector. The contributor register is for British professionals with deep sector expertise, who are paid, credited and share in what Albion earns; it needs their name, email, sector and how long they have worked in it. And a scoping call books a real time with the team: its calendar shows the genuinely available slots, so never invent or promise a time yourself. Ask which they want rather than guessing, and never put up the Helix waiting-list form here.`,
   },
@@ -373,7 +379,7 @@ async function callGemini(message, history, site = 'helix') {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: CONTEXT_PACK + suffix + TOOL_SUFFIX }] },
+      systemInstruction: { parts: [{ text: CONTEXT_PACK + suffix + '\n\n' + ALBION_BANK + TOOL_SUFFIX }] },
       contents: toGeminiContents(message, history),
       generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }, // the model thinks inside this budget; 500 left answers truncated
       tools: [tool],
@@ -435,7 +441,7 @@ function mintVoiceSession(site = 'helix') {
   });
   const payload = Buffer.from(
     JSON.stringify({
-      instructions: `${CONTEXT_PACK}${suffix}${VOICE_SUFFIX}\n\nToday is ${today}.`,
+      instructions: `${CONTEXT_PACK}${suffix}\n\n${ALBION_BANK}${VOICE_SUFFIX}\n\nToday is ${today}.`,
       voiceId: VERA_VOICE_ID,
       voiceSpeed: VERA_VOICE_SPEED,
       site: SITE_HOSTS[resolved],
