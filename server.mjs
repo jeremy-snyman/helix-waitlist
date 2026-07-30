@@ -26,6 +26,12 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.DATA_DIR || join(ROOT, 'data');
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+/* When an Anthropic key is present, Claude answers the typed chat (same brain as
+   mindlynx.ai) and Gemini becomes the fallback. The big system block is sent
+   with cache_control, so the pack + bank prefix is cached: repeat turns are
+   faster and the cached prefix costs a fraction of the first read. */
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
 /* ---------------- voice ----------------
    Vera speaks through the Helix Pipecat service, exactly as she does on
@@ -373,6 +379,128 @@ function toGeminiContents(message, history) {
   return contents;
 }
 
+/**
+ * A Gemini tool declaration, converted to Anthropic's shape: the one function,
+ * with JSON-Schema types lowercased recursively. Exported for its test.
+ */
+export function toClaudeTool(geminiTool) {
+  const fn = geminiTool.functionDeclarations[0];
+  const lower = (node) => {
+    if (Array.isArray(node)) return node.map(lower);
+    if (!node || typeof node !== 'object') return node;
+    const out = {};
+    for (const [k, v] of Object.entries(node)) {
+      out[k] = k === 'type' && typeof v === 'string' ? v.toLowerCase() : lower(v);
+    }
+    return out;
+  };
+  return { name: fn.name, description: fn.description, input_schema: lower(fn.parameters) };
+}
+
+/* Claude checks the shared diary itself, so typed Vera offers REAL times before
+   the form goes up — the same loop mindlynx.ai runs. */
+const CLAUDE_AVAILABILITY_TOOL = {
+  name: 'check_availability',
+  description:
+    'Look up the real bookable times for a scoping call. Call it when the visitor wants a call and timing comes up, before proposing any times. Returns human-readable slots in London time. Never invent a time this tool did not return.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      from: { type: 'string', description: 'ISO date lower bound, e.g. 2026-08-03. Omit for the coming week.' },
+      to: { type: 'string', description: 'ISO upper bound, at most 7 days after from.' },
+    },
+  },
+};
+
+async function availabilityResult(input) {
+  try {
+    const qs = new URLSearchParams();
+    if (input?.from) qs.set('from', clean(input.from, 40));
+    if (input?.to) qs.set('to', clean(input.to, 40));
+    const r = await fetch(`${MINDLYNX_ORIGIN}/api/availability${qs.size ? `?${qs}` : ''}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    const av = await r.json();
+    if (!av?.ok || !av.slots?.length) return { error: 'no slots available in that window' };
+    return { slots: av.slots.slice(0, 12).map((sl) => sl.label) };
+  } catch {
+    return { error: 'the diary is unreachable; take their preference in their own words' };
+  }
+}
+
+function toClaudeMessages(message, history) {
+  const messages = [];
+  for (const turn of (Array.isArray(history) ? history.slice(-20) : [])) {
+    if (!turn || typeof turn.content !== 'string') continue;
+    const text = turn.content.replace(/<[^>]+>/g, '').trim();
+    if (!text) continue;
+    messages.push({ role: turn.role === 'agent' ? 'assistant' : 'user', content: text.slice(0, 2000) });
+  }
+  const last = messages[messages.length - 1];
+  if (!last || last.role !== 'user' || last.content !== message) messages.push({ role: 'user', content: message });
+  return messages;
+}
+
+async function claudeCreate(messages, site) {
+  const { tool, suffix } = SITES[siteOf(site)];
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 2048,
+      // The pack, site suffix and bank are static per site and CACHED; the date
+      // rides in its own uncached block so "next Wednesday" can become a real
+      // ISO date without breaking the cache.
+      system: [
+        { type: 'text', text: CONTEXT_PACK + suffix + '\n\n' + ALBION_BANK + TOOL_SUFFIX, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/London' })}.` },
+      ],
+      tools: [toClaudeTool(tool), CLAUDE_AVAILABILITY_TOOL],
+      messages,
+    }),
+    signal: AbortSignal.timeout(25_000),
+  });
+  if (!res.ok) throw new Error(`claude ${res.status}`);
+  const data = await res.json();
+  const u = data.usage ?? {};
+  // One line per call so the cache can be SEEN working in the logs.
+  console.log(`[claude] in=${u.input_tokens ?? 0} cache_write=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0} out=${u.output_tokens ?? 0}`);
+  return data;
+}
+
+async function callClaude(message, history, site = 'helix') {
+  const messages = toClaudeMessages(message, history);
+  let data = await claudeCreate(messages, site);
+  let toolUse = (data.content ?? []).find((b) => b.type === 'tool_use');
+  // The model may correct its window and look again; give it a few rounds.
+  for (let round = 0; round < 3 && toolUse?.name === 'check_availability'; round++) {
+    const response = await availabilityResult(toolUse.input);
+    messages.push({ role: 'assistant', content: data.content });
+    messages.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(response) }] });
+    data = await claudeCreate(messages, site);
+    toolUse = (data.content ?? []).find((b) => b.type === 'tool_use');
+  }
+  let reply = (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join(' ').trim();
+  let action;
+  if (toolUse?.name === 'show_signup_form') {
+    action = toAction(toolUse.input || {}, siteOf(site));
+    reply ||= action.intent === 'scoping_call'
+      ? 'The calendar is on your screen with the real available times. Pick the one that suits, check your details, then press the button. The button press is yours to make, not mine.'
+      : action.intent === 'albion_contributor'
+        ? 'Here is the contributor register, pre-filled. Check it over, tick the consent box, then press the button. The button press is yours to make, not mine.'
+        : action.intent === 'albion_waitlist'
+          ? 'Here is the waitlist form, pre-filled. Check it over, tick the consent box, then press the button. The button press is yours to make, not mine.'
+          : 'Here is your form, pre-filled. Tick the products you want first, check the consent box, then press the button. The button press is yours to make, not mine.';
+  }
+  if (!reply) throw new Error('empty reply');
+  return { reply, action };
+}
+
 async function callGemini(message, history, site = 'helix') {
   const { tool, suffix } = SITES[siteOf(site)];
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
@@ -582,11 +710,19 @@ async function handleAgent(req, res) {
   const limited = rateLimit('chat', ip);
   if (!limited.ok) return json(res, 429, { ok: false, error: 'Too many requests.' }, { 'Retry-After': String(limited.retryAfter) });
   const body = await readJson(req);
-  if (!GEMINI_API_KEY) return json(res, 503, { fallback: true });
+  if (!ANTHROPIC_API_KEY && !GEMINI_API_KEY) return json(res, 503, { fallback: true });
   const message = clean(body.message, 2000);
   if (!message) return json(res, 400, { ok: false, error: 'A message is required.' });
   try {
-    const { reply, action } = await callGemini(message, body.history, body.site);
+    // Claude first (cached pack, same brain as mindlynx.ai); Gemini is the rung
+    // below it, so a Claude outage degrades rather than silences her.
+    const { reply, action } = ANTHROPIC_API_KEY
+      ? await callClaude(message, body.history, body.site).catch((err) => {
+          if (!GEMINI_API_KEY) throw err;
+          console.warn('[claude] failed, falling to gemini:', err?.message);
+          return callGemini(message, body.history, body.site);
+        })
+      : await callGemini(message, body.history, body.site);
     const filtered = redact(deslop(reply));
     if (filtered.found.length) {
       appendRecord('redactions.ndjson', { ts: new Date().toISOString(), tokens: filtered.found, ip }).catch(() => {});
@@ -703,7 +839,7 @@ export const server = createServer(async (req, res) => {
       return res.end(img);
     }
     if (req.method === 'GET' && path === '/api/health') {
-      return json(res, 200, { ok: true, agent: !!GEMINI_API_KEY, voice: !!VOICE_OFFER_SECRET });
+      return json(res, 200, { ok: true, agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY), voice: !!VOICE_OFFER_SECRET });
     }
     if (req.method === 'POST' && path === '/api/waitlist') return await handleWaitlist(req, res);
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);
@@ -729,7 +865,7 @@ export const server = createServer(async (req, res) => {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   server.listen(PORT, () => {
     console.log(`helix.work listening on http://localhost:${PORT}`);
-    console.log(`  agent: ${GEMINI_API_KEY ? GEMINI_MODEL : 'scripted (no GEMINI_API_KEY)'}`);
+    console.log(`  agent: ${ANTHROPIC_API_KEY ? `${CLAUDE_MODEL} (cached pack, gemini fallback)` : GEMINI_API_KEY ? GEMINI_MODEL : 'scripted (no key)'}`);
     console.log(`  voice: ${VOICE_OFFER_SECRET ? `Pipecat · Vera (${VERA_VOICE_ID.slice(0, 8)}… @ ${VERA_VOICE_SPEED})` : 'Web Speech fallback (no VOICE_OFFER_SECRET)'}`);
     console.log(`  data:  ${DATA_DIR}`);
   });
