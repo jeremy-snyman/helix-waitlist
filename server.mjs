@@ -230,6 +230,12 @@ const CONTEXT_PACK = await readFile(join(ROOT, 'context-pack.md'), 'utf8').catch
    guards. Loaded on EVERY door, because Albion questions arrive on helix.work
    and cortex too; the SITE suffix still decides what she leads with. */
 const ALBION_BANK = await readFile(join(ROOT, 'albion-bank.md'), 'utf8').catch(() => '');
+if (!ALBION_BANK) {
+  // Fail open (Vera still answers from the pack) but never silently: this exact
+  // absence shipped once, because the Dockerfile did not copy the file and this
+  // catch swallowed it. The health endpoint carries the truth for post-deploy checks.
+  console.error('ALBION BANK MISSING: albion-bank.md not readable; Vera is answering without her question bank');
+}
 
 const TOOL_SUFFIX = `
 
@@ -839,7 +845,7 @@ export const server = createServer(async (req, res) => {
       return res.end(img);
     }
     if (req.method === 'GET' && path === '/api/health') {
-      return json(res, 200, { ok: true, agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY), voice: !!VOICE_OFFER_SECRET });
+      return json(res, 200, { ok: true, agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY), voice: !!VOICE_OFFER_SECRET, bank: !!ALBION_BANK.length });
     }
     if (req.method === 'POST' && path === '/api/waitlist') return await handleWaitlist(req, res);
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);
