@@ -766,10 +766,13 @@
                  the visitor "it's on your screen" while the browser discarded it. */
               if (!data) return;
               if (data.type !== 'show_action_form' && data.type !== 'show_signup_form') return;
-              /* MindLynx-only intents (scoping_call, design_partner, send_info) have
-                 no form here: land on THIS site's own form, per the site config. */
+              /* Intents with no form of their own land somewhere sensible:
+                 design_partner and send_info want a conversation, so they take
+                 the call form; anything else takes this site's own form. */
               showForm({
-                intent: FORMS[data.intent] ? data.intent : DEFAULT_INTENT,
+                intent: FORMS[data.intent] ? data.intent
+                  : (data.intent === 'design_partner' || data.intent === 'send_info') ? 'scoping_call'
+                    : DEFAULT_INTENT,
                 name: data.name, email: data.email, organisation: data.organisation,
                 sector: data.sector, years: data.years, role: data.role, products: data.products,
                 topic: data.topic, preferredTime: data.preferredTime, preferredDate: data.preferredDate,

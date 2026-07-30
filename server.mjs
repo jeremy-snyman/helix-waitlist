@@ -230,11 +230,13 @@ const CONTEXT_PACK = await readFile(join(ROOT, 'context-pack.md'), 'utf8').catch
    guards. Loaded on EVERY door, because Albion questions arrive on helix.work
    and cortex too; the SITE suffix still decides what she leads with. */
 const ALBION_BANK = await readFile(join(ROOT, 'albion-bank.md'), 'utf8').catch(() => '');
-if (!ALBION_BANK) {
+const HELIX_BANK = await readFile(join(ROOT, 'helix-bank.md'), 'utf8').catch(() => '');
+const BANKS = [ALBION_BANK, HELIX_BANK].filter(Boolean).join('\n\n');
+if (!ALBION_BANK || !HELIX_BANK) {
   // Fail open (Vera still answers from the pack) but never silently: this exact
   // absence shipped once, because the Dockerfile did not copy the file and this
   // catch swallowed it. The health endpoint carries the truth for post-deploy checks.
-  console.error('ALBION BANK MISSING: albion-bank.md not readable; Vera is answering without her question bank');
+  console.error(`QUESTION BANK MISSING (albion=${!!ALBION_BANK} helix=${!!HELIX_BANK}); Vera is answering without her teaching material`);
 }
 
 const TOOL_SUFFIX = `
@@ -463,7 +465,7 @@ async function claudeCreate(messages, site) {
       // rides in its own uncached block so "next Wednesday" can become a real
       // ISO date without breaking the cache.
       system: [
-        { type: 'text', text: CONTEXT_PACK + suffix + '\n\n' + ALBION_BANK + TOOL_SUFFIX, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: CONTEXT_PACK + suffix + '\n\n' + BANKS + TOOL_SUFFIX, cache_control: { type: 'ephemeral' } },
         // Changes daily, so it lives OUTSIDE the cached block.
         { type: 'text', text: ukCalendar() },
       ],
@@ -514,7 +516,7 @@ async function callGemini(message, history, site = 'helix') {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: CONTEXT_PACK + suffix + '\n\n' + ALBION_BANK + TOOL_SUFFIX + '\n\n' + ukCalendar() }] },
+      systemInstruction: { parts: [{ text: CONTEXT_PACK + suffix + '\n\n' + BANKS + TOOL_SUFFIX + '\n\n' + ukCalendar() }] },
       contents: toGeminiContents(message, history),
       generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }, // the model thinks inside this budget; 500 left answers truncated
       tools: [tool],
@@ -590,7 +592,7 @@ function mintVoiceSession(site = 'helix') {
   const { suffix } = SITES[resolved];
   const payload = Buffer.from(
     JSON.stringify({
-      instructions: `${CONTEXT_PACK}${suffix}\n\n${ALBION_BANK}${VOICE_SUFFIX}\n\n${ukCalendar()}`,
+      instructions: `${CONTEXT_PACK}${suffix}\n\n${BANKS}${VOICE_SUFFIX}\n\n${ukCalendar()}`,
       voiceId: VERA_VOICE_ID,
       voiceSpeed: VERA_VOICE_SPEED,
       site: SITE_HOSTS[resolved],
@@ -860,7 +862,7 @@ export const server = createServer(async (req, res) => {
       return res.end(img);
     }
     if (req.method === 'GET' && path === '/api/health') {
-      return json(res, 200, { ok: true, agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY), voice: !!VOICE_OFFER_SECRET, bank: !!ALBION_BANK.length });
+      return json(res, 200, { ok: true, agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY), voice: !!VOICE_OFFER_SECRET, bank: !!(ALBION_BANK && HELIX_BANK) });
     }
     if (req.method === 'POST' && path === '/api/waitlist') return await handleWaitlist(req, res);
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);
