@@ -568,6 +568,17 @@ SOUNDING HUMAN
 - React like a listener before the substance when it is earned: a short "oh nice", "fair enough", "ha, fair".
 - Vary your refusals and your acknowledgements so no two in a row sound the same.`;
 
+/* The LAST thing the voice model reads, deliberately: with a ~30k-token pack in
+   front of it, the model keeps the facts but sheds mid-pack behavioural rules —
+   live, Vera recited bank answers while trimming exactly their closing
+   questions. Recency is the strongest position, so the turn rule sits here,
+   after everything, including the calendar. */
+const TURN_SUFFIX = `
+
+THE TURN, LAST BECAUSE IT MATTERS MOST
+
+A conversation is a rally, not a lecture. The last sentence of nearly every reply hands the turn back: a short question or invitation, which of two things they care about, whether they want the longer version, what their own situation is. The bank answers you draw on each end on their own next step; keep those endings, never trim them. Your opening greeting ends on its question too. The only replies that end flat are a goodbye, or warmly taking a detail they have just given you.`;
+
 /**
  * The next fortnight in London time, as a lookup table. Models reliably get
  * weekday arithmetic wrong ("next Monday would be the 4th of August, which is
@@ -600,7 +611,7 @@ function mintVoiceSession(site = 'helix') {
   const { suffix } = SITES[resolved];
   const payload = Buffer.from(
     JSON.stringify({
-      instructions: `${CONTEXT_PACK}${suffix}\n\n${BANKS}${VOICE_SUFFIX}\n\n${ukCalendar()}`,
+      instructions: `${CONTEXT_PACK}${suffix}\n\n${BANKS}${VOICE_SUFFIX}\n\n${ukCalendar()}${TURN_SUFFIX}`,
       voiceId: VERA_VOICE_ID,
       voiceSpeed: VERA_VOICE_SPEED,
       site: SITE_HOSTS[resolved],
