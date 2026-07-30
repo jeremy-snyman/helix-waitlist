@@ -18,7 +18,7 @@ import { createServer } from 'node:http';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 try { process.loadEnvFile(); } catch { /* no .env is fine: demo mode */ }
 
@@ -505,8 +505,23 @@ const CSP = [
 ].join('; ');
 
 const pageCache = new Map();
+
+/* The widget's content hash, stamped into every page's script tag so HTML and
+   widget always PAIR: a deploy changes the URL, so no browser or edge cache can
+   run yesterday's widget against today's server. Without this, a visitor who
+   loaded any page in the 5 minutes before a deploy kept the old vera.js for up
+   to 5 minutes after — live symptom: the server announced the scoping-call
+   calendar while the cached widget, which had never heard of it, fell back to
+   the waiting-list form. */
+const VERA_STAMP = createHash('sha256')
+  .update(await readFile(join(ROOT, 'public', 'vera.js')))
+  .digest('hex')
+  .slice(0, 8);
 async function sendPage(res, file = 'index.html') {
-  if (!pageCache.has(file)) pageCache.set(file, await readFile(join(ROOT, 'public', file)));
+  if (!pageCache.has(file)) {
+    const raw = await readFile(join(ROOT, 'public', file), 'utf8');
+    pageCache.set(file, Buffer.from(raw.replace('src="/vera.js"', `src="/vera.js?v=${VERA_STAMP}"`)));
+  }
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'public, max-age=300',
