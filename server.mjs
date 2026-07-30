@@ -464,7 +464,8 @@ async function claudeCreate(messages, site) {
       // ISO date without breaking the cache.
       system: [
         { type: 'text', text: CONTEXT_PACK + suffix + '\n\n' + ALBION_BANK + TOOL_SUFFIX, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: `Today is ${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/London' })}.` },
+        // Changes daily, so it lives OUTSIDE the cached block.
+        { type: 'text', text: ukCalendar() },
       ],
       tools: [toClaudeTool(tool), CLAUDE_AVAILABILITY_TOOL],
       messages,
@@ -513,7 +514,7 @@ async function callGemini(message, history, site = 'helix') {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: CONTEXT_PACK + suffix + '\n\n' + ALBION_BANK + TOOL_SUFFIX }] },
+      systemInstruction: { parts: [{ text: CONTEXT_PACK + suffix + '\n\n' + ALBION_BANK + TOOL_SUFFIX + '\n\n' + ukCalendar() }] },
       contents: toGeminiContents(message, history),
       generationConfig: { temperature: 0.3, maxOutputTokens: 2000 }, // the model thinks inside this budget; 500 left answers truncated
       tools: [tool],
@@ -558,6 +559,23 @@ VOICE RULES
 - Never claim to have submitted anything.`;
 
 /**
+ * The next fortnight in London time, as a lookup table. Models reliably get
+ * weekday arithmetic wrong ("next Monday would be the 4th of August, which is
+ * actually a Tuesday" happened live), so no brain is ever asked to compute a
+ * weekday again: today, tomorrow and the next Monday are all things to READ.
+ */
+export function ukCalendar(days = 14) {
+  const iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' });
+  const words = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const lines = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(Date.now() + i * 86_400_000);
+    lines.push(`${i === 0 ? 'Today: ' : i === 1 ? 'Tomorrow: ' : ''}${words.format(d)} = ${iso.format(d)}`);
+  }
+  return `CALENDAR (Europe/London)\n${lines.join('\n')}\nUse this calendar for every date and weekday; never work a weekday out yourself. "Next Monday" is the first Monday after today in this list. If a requested day has no bookable slots, say that day has nothing free and offer the nearest day that does.`;
+}
+
+/**
  * Mint a signed session for the Helix Pipecat voice service — the SAME voice
  * mindlynx.ai speaks with (Deepgram STT → LLM → Cartesia TTS over WebRTC),
  * rather than Gemini Live's native audio, which cannot speak a Cartesia voice
@@ -570,12 +588,9 @@ VOICE RULES
 function mintVoiceSession(site = 'helix') {
   const resolved = siteOf(site);
   const { suffix } = SITES[resolved];
-  const today = new Date().toLocaleDateString('en-GB', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/London',
-  });
   const payload = Buffer.from(
     JSON.stringify({
-      instructions: `${CONTEXT_PACK}${suffix}\n\n${ALBION_BANK}${VOICE_SUFFIX}\n\nToday is ${today}.`,
+      instructions: `${CONTEXT_PACK}${suffix}\n\n${ALBION_BANK}${VOICE_SUFFIX}\n\n${ukCalendar()}`,
       voiceId: VERA_VOICE_ID,
       voiceSpeed: VERA_VOICE_SPEED,
       site: SITE_HOSTS[resolved],
