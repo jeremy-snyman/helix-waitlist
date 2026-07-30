@@ -480,17 +480,32 @@
       })
       .then(function (ctx) {
         vlog('sdk-ok', {});
-        /* Create the Daily call ourselves so `useDevicePreferenceCookies:false` is
-           pinned at the one place every entry path reads config from. Left to its
-           own devices Daily restores whichever mic was used LAST — a nearby iPhone
-           over Continuity, in the worst case — and Vera goes deaf with no error. */
+        /* Create the Daily call ourselves so two flags are pinned at the one place
+           every entry path reads its config from:
+
+             avoidEval — Daily's default loader FETCHES its call-machine bundle and
+               EVALS the string, which this site's CSP refuses (no 'unsafe-eval'), so
+               connect died with "Failed to load call object bundle" and Vera sat
+               silent. avoidEval loads the same bundle as a <script> from *.daily.co
+               instead. mindlynx.ai never hit this because it sends no CSP at all.
+             useDevicePreferenceCookies — left alone, Daily restores whichever mic
+               was used LAST (a nearby iPhone over Continuity, at worst) and Vera
+               goes deaf with no visible error.
+
+           Both have to be forced at load(), not at createCallObject: every entry
+           point calls load(props) and load SHALLOW-merges, so the media manager's
+           own `dailyConfig` replaced ours wholesale and the eval loader came back.
+           (Same fix, same reasoning, as helix-ui's usePipecatVoice.) */
         var Daily = ctx.dj.default || ctx.dj;
         var call = (Daily.getCallInstance && Daily.getCallInstance()) || Daily.createCallObject();
         live.call = call;
         var originalLoad = call.load.bind(call);
         call.load = function (props) {
           var next = props || {};
-          next.dailyConfig = Object.assign({}, next.dailyConfig || {}, { useDevicePreferenceCookies: false });
+          next.dailyConfig = Object.assign({}, next.dailyConfig || {}, {
+            avoidEval: true,
+            useDevicePreferenceCookies: false,
+          });
           return originalLoad(next);
         };
         /* A television in the room is speech; strip it before the track leaves. */

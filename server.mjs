@@ -457,10 +457,17 @@ async function readJson(req) {
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net blob:",
+  // Daily is the Pipecat client's media manager: it fetches its call-machine
+  // bundle from c.daily.co at connect time, so both script-src and connect-src
+  // have to allow it or the voice session dies before the microphone is touched.
+  // mindlynx.ai gets away without this because it sends no CSP at all.
+  // 'wasm-unsafe-eval' and NOT 'unsafe-eval': Daily's noise-cancellation processor
+  // compiles WebAssembly in a worker, and this narrow directive permits exactly that
+  // while still refusing to evaluate a string as JavaScript.
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://*.daily.co blob:",
   "style-src 'unsafe-inline' https://fonts.googleapis.com",
   'font-src https://fonts.gstatic.com',
-  "connect-src 'self' https://app.helix.work wss://app.helix.work https://cdn.jsdelivr.net",
+  "connect-src 'self' https://app.helix.work wss://app.helix.work https://cdn.jsdelivr.net https://*.daily.co wss://*.daily.co",
   "img-src 'self' data:",
   'worker-src blob:',
   "frame-ancestors 'none'",
