@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Helix — hire agents, retire agents</title>
-<meta name="description" content="Hire an AI team you actually own. Brief them by talking, put them to work, keep your data entirely yours. Simple, sovereign, voice-driven.">
+<title>Helix: the AI operating system for work</title>
+<meta name="description" content="Helix is a complete AI operating system, built agentically from the ground up. Some work gets automated, some is delegated to agents, some stays with people and changes shape. Helix manages the whole shift. Join the waiting list.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23020307'/%3E%3Crect x='3' y='3' width='10' height='10' fill='%23C8FF00'/%3E%3C/svg%3E">
 <!--
   helix.work waiting list · Ink palette · © MindLynx
@@ -101,10 +101,10 @@
   .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
   @keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
 
-  .metis{display:flex;justify-content:space-between;align-items:center;gap:32px;border:1px solid var(--line);background:var(--panel);padding:32px;flex-wrap:wrap}
-  .metis h3{font-family:'Anton',sans-serif;font-weight:400;font-size:28px;text-transform:uppercase}
-  .metis p{color:var(--muted);max-width:520px}
-  .metis .links{display:flex;gap:12px;flex-wrap:wrap}
+  .duo{display:flex;justify-content:space-between;align-items:center;gap:32px;border:1px solid var(--line);background:var(--panel);padding:32px;flex-wrap:wrap}
+  .duo h3{font-family:'Anton',sans-serif;font-weight:400;font-size:28px;text-transform:uppercase}
+  .duo p{color:var(--muted);max-width:520px}
+  .duo .links{display:flex;gap:12px;flex-wrap:wrap}
 
   .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .formgrid .full{grid-column:1/-1}
@@ -148,7 +148,7 @@
     <a class="logo" href="#top">Helix<i>.</i></a>
     <div class="links">
       <a class="btn" href="/albion">Albion</a>
-      <a class="btn" href="#ask">Ask Helix</a>
+      <a class="btn" href="#ask">Ask Vera</a>
       <a class="btn primary" href="#waitlist">Join the waiting list</a>
     </div>
   </div>
@@ -158,20 +158,56 @@
   <canvas id="rise"></canvas>
   <div class="wrap">
     <p class="eyebrow">Early access &middot; join the waiting list</p>
-    <h1>Hire an AI team<br>you <span>actually own</span></h1>
-    <p class="sub">Brief them by talking. Put them to work. Your data, your memory and your decisions stay entirely yours, and you stand them down the moment the job is done.</p>
-    <a class="btn primary" href="#ask">Ask Helix anything</a>
-    <a class="btn" href="#products" style="margin-left:10px">See the products</a>
+    <h1>The AI operating system,<br>built <span>agentically</span></h1>
+    <p class="sub">Some of your work gets automated. Some gets delegated to agents. Some stays with people and changes shape. Helix manages that whole shift, with agents and humans working in the same team.</p>
+    <a class="btn primary" href="#ask">Ask Vera anything</a>
+    <a class="btn" href="#work" style="margin-left:10px">See how it thinks about work</a>
   </div>
 </div>
 
 <div class="wrap">
   <div class="pillars">
-    <div><b style="color:var(--lime)">Hire</b><p>An agent or a whole team, working in minutes. Retire them the moment the job is done. No headcount, no infrastructure.</p></div>
-    <div><b style="color:var(--mint)">Own</b><p>Your data, memory and decisions stay in your environment. Never sent to the labs, never training someone else's model.</p></div>
-    <div><b style="color:var(--cyan)">Speak</b><p>No dashboards, no prompts. Say what you need, out loud, and the team gets to work.</p></div>
+    <div><b style="color:var(--lime)">One team</b><p>Agents and humans work side by side, under the same access control and the same rules. No separate AI corner of the business.</p></div>
+    <div><b style="color:var(--mint)">Hire, retire</b><p>Bring an agent in for the work you need, stand it down when you don't. The shape of the team keeps changing, and that's the point.</p></div>
+    <div><b style="color:var(--cyan)">Costed, transparent</b><p>Every initiative, task and execution shows what it cost and what happened. Not a report you request; how the thing works.</p></div>
   </div>
 </div>
+
+<section id="work">
+  <div class="wrap">
+    <div class="sect-head">
+      <h2>Four kinds of <span>work</span></h2>
+      <p>Most of what a business actually wants falls into one of these, and Helix treats them as genuinely different sorts of work rather than all as prompts.</p>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+      <div class="card">
+        <div class="idx"><span class="num">01 / THINK</span><span class="swatch" style="background:var(--lavender)"></span></div>
+        <h3>Think</h3>
+        <p>The work where the output is a judgement or an analysis rather than a thing. The type most tools skip straight past.</p>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">02 / CREATE</span><span class="swatch" style="background:var(--pink)"></span></div>
+        <h3>Create</h3>
+        <p>Making the thing: the document, the design, the content, the deliverable.</p>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">03 / BUILD</span><span class="swatch" style="background:var(--cyan)"></span></div>
+        <h3>Build</h3>
+        <p>Building what runs afterwards, rather than producing a one-off output.</p>
+      </div>
+      <div class="card">
+        <div class="idx"><span class="num">04 / AUTOMATE</span><span class="swatch" style="background:var(--amber)"></span></div>
+        <h3>Automate</h3>
+        <p>The work that should stop needing a person at all, once it's proven. Decided on evidence, because every execution is costed.</p>
+      </div>
+    </div>
+    <div class="pillars" style="margin-top:28px">
+      <div><b style="color:var(--lavender)">Any rigour</b><p>From very little to regulated, whatever the business needs. Frameworks are yours to define, and the evidence is produced as the work happens.</p></div>
+      <div><b style="color:var(--amber)">Two hierarchies</b><p>What the business is, and what it is doing about it: your products and services on one side, initiatives down to a single execution on the other.</p></div>
+      <div><b style="color:var(--pink)">Three ways in</b><p>Voice, plain language, or point and click, from the moment you sign up. None of the three is the second-class option.</p></div>
+    </div>
+  </div>
+</section>
 
 <section id="who">
   <div class="wrap">
@@ -182,7 +218,7 @@
     <div class="who">
       <div>
         <b class="tag" style="color:var(--mint)">For operators</b>
-        <p>Non-technical people who just want to utilise AI. Hire an agent or a team, tell it what you need, in your own words or your own voice, and stay safe while you do it. No dependence on any single large lab, and no infrastructure to run.</p>
+        <p>People who want the work done and don't want to run infrastructure. Describe the work by voice, in plain language or by pointing and clicking; hire agents for the parts worth delegating; keep the parts worth a person's judgement.</p>
       </div>
       <div>
         <b class="tag" style="color:var(--lavender)">For builders</b>
@@ -192,6 +228,7 @@
           <li>Skills created in your workflows, reusable everywhere</li>
           <li>A rules engine that makes agents deterministic where it matters</li>
           <li>Generative UI: the interface builds itself around the task</li>
+          <li>A workflow builder, to set out how the work should run</li>
           <li>Voice as a first-class interface across all of it</li>
         </ul>
       </div>
@@ -242,11 +279,11 @@
         <button class="btn" data-product="Marketplace">Join waiting list</button>
       </div>
       <div class="card">
-        <div class="idx"><span class="num">06 / OPEN SOURCE</span><span class="swatch" style="background:var(--mint)"></span></div>
-        <h3>Metis Flow</h3>
-        <p>Our open-source project, free and building in public. Star it, break it, shape it. The fastest way to see how we think.</p>
-        <p class="for">FOR DEVELOPERS &middot; FREE FOREVER</p>
-        <a class="btn" href="https://github.com/mindlynx-ai/metis" target="_blank" rel="noopener">View on GitHub</a>
+        <div class="idx"><span class="num">06 / ORCHESTRATION</span><span class="swatch" style="background:var(--mint)"></span></div>
+        <h3>The workflow builder</h3>
+        <p>Set out how the work should run rather than describing it again every time. People, agents and automations in one flow, governed and costed like everything else in Helix.</p>
+        <p class="for">FOR WORK THAT REPEATS</p>
+        <a class="btn" href="#ask">Ask Vera about it</a>
       </div>
     </div>
   </div>
@@ -254,15 +291,15 @@
 
 <section class="band">
   <div class="wrap">
-    <div class="metis">
+    <div class="duo">
       <div>
-        <p class="eyebrow" style="margin-bottom:8px">Building in the open</p>
-        <h3>Start with Metis Flow today</h3>
-        <p>Helix products arrive in sequence. Metis Flow is already here: open source, free, and the first taste of the platform underneath.</p>
+        <p class="eyebrow" style="margin-bottom:8px">Design partners</p>
+        <h3>Shape it rather than wait for it</h3>
+        <p>The most useful time to get involved is before it is finished. Design partners get in early, and their problems shape what gets built. We are releasing piece by piece, testing with a small number of partners.</p>
       </div>
       <div class="links">
-        <a class="btn" href="https://github.com/mindlynx-ai/metis" target="_blank" rel="noopener">GitHub</a>
-        <a class="btn" href="https://metisflow.io" target="_blank" rel="noopener">Metis Flow site</a>
+        <a class="btn primary" href="#ask">Talk to us about it</a>
+        <a class="btn" href="#waitlist">Or join the list</a>
       </div>
     </div>
   </div>
@@ -270,7 +307,7 @@
 
 <section id="albion" class="band">
   <div class="wrap">
-    <div class="metis" style="border-color:var(--mint)">
+    <div class="duo" style="border-color:var(--mint)">
       <div>
         <p class="eyebrow" style="margin-bottom:8px">Part of Helix</p>
         <h3>Albion &middot; Britain's <span style="color:var(--mint)">sovereign</span> compound model</h3>
@@ -331,7 +368,7 @@
     </form>
     <div class="success" id="wl-success">
       <b>You are on the list.</b>
-      <p style="color:var(--muted);margin-top:6px">We will email you the moment your products open up. Until then, Metis Flow is live and free.</p>
+      <p style="color:var(--muted);margin-top:6px">We will email you the moment your products open up. Until then, Vera can answer most questions.</p>
     </div>
   </div>
 </section>
@@ -356,7 +393,7 @@
 <footer>
   <div class="wrap foot">
     <span>&copy; MindLynx &middot; Helix is a MindLynx product</span>
-    <span><a href="#privacy">Privacy</a> &nbsp;&middot;&nbsp; <a href="mailto:hello@helix.work">hello@helix.work</a> &nbsp;&middot;&nbsp; <a href="https://github.com/mindlynx-ai/metis" target="_blank" rel="noopener">GitHub</a></span>
+    <span><a href="#privacy">Privacy</a> &nbsp;&middot;&nbsp; <a href="mailto:hello@helix.work">hello@helix.work</a></span>
   </div>
 </footer>
 
