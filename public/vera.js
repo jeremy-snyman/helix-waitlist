@@ -354,6 +354,12 @@
             if (!d || d.ok === false) throw new Error('book failed');
             goBtn.textContent = 'Booked';
             agentSay('<b>' + esc(n.split(' ')[0]) + ', ' + esc(spec.done) + '</b> ' + esc(spec.tail));
+            /* On a voice call, tell the SERVICE too: the tool call ended long
+               before the button press, so without this Vera never learns the
+               booking landed — she now confirms it out loud. */
+            if (live.client) {
+              try { live.client.sendClientMessage('booking_confirmed', { label: (chosenSlot && chosenSlot.label) || '' }); } catch (e) {}
+            }
           })
           .catch(function () {
             goBtn.disabled = false;
