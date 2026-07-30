@@ -46,6 +46,12 @@ const SITE_HOSTS = {
   albion: 'albion.helix.work',
   cortex: 'cortex.helix.work',
 };
+/* ---------------- scoping calls ----------------
+   ONE diary across every front door: mindlynx.ai holds the Calendly token and
+   exposes public, rate-limited availability + booking endpoints; these sites
+   proxy them server-side. No new secrets, no CORS, and a slot booked on any
+   site leaves the same calendar. */
+const MINDLYNX_ORIGIN = process.env.MINDLYNX_ORIGIN || 'https://mindlynx.ai';
 
 export const PRODUCTS = ['Cortex', 'Tachyon', 'Pulse', 'Helix Agents', 'Marketplace'];
 const SOURCES = ['helix.work', 'helix.work/agent', 'cortex.helix.work'];
@@ -57,6 +63,8 @@ const LIMITS = {
   chat: { max: 20, windowMs: 60_000 },
   voice: { max: 5, windowMs: 600_000 },
   log: { max: 60, windowMs: 60_000 },
+  avail: { max: 60, windowMs: 60_000 },
+  book: { max: 3, windowMs: 600_000 },
 };
 const hits = new Map();
 setInterval(() => {
@@ -227,13 +235,17 @@ OUTPUT RULES
 const SIGNUP_TOOL = {
   functionDeclarations: [{
     name: 'show_signup_form',
-    description: 'Render the pre-filled waiting-list sign-up form in the chat. Call ONLY after the visitor has explicitly stated both their name and their email address in this conversation. Never call it with a guessed, assumed or example value; if you do not have a real email yet, ask for it instead. If the visitor asks to change or correct a detail on the form, call this tool again with the corrected values and a fresh form replaces the old one. Render-only: the visitor reviews the form and presses submit themselves.',
+    description: 'Render a pre-filled form in the chat. Call ONLY after the visitor has explicitly stated both their name and their email address in this conversation. Never call it with a guessed, assumed or example value; if you do not have a real email yet, ask for it instead. Intent helix_waitlist joins the waiting list; intent scoping_call books a call with the team — its form shows a calendar of REAL bookable times, so never invent or promise a time yourself. If the visitor asks to change or correct a detail, call this tool again and a fresh form replaces the old one. Render-only: the visitor reviews the form and presses submit themselves.',
     parameters: {
       type: 'OBJECT',
       properties: {
+        intent: { type: 'STRING', enum: ['helix_waitlist', 'scoping_call'], description: 'What the visitor wants to do' },
         name: { type: 'STRING', description: 'Visitor name as given' },
         email: { type: 'STRING', description: 'Visitor email as given' },
-        products: { type: 'ARRAY', items: { type: 'STRING', enum: PRODUCTS }, description: 'Products the visitor showed interest in' },
+        products: { type: 'ARRAY', items: { type: 'STRING', enum: PRODUCTS }, description: 'Products the visitor showed interest in (waiting list only)' },
+        topic: { type: 'STRING', description: 'For scoping_call: what the call is about, briefly, from the conversation' },
+        preferredTime: { type: 'STRING', description: 'For scoping_call: when they said they would like the call, in their own words. Empty if no preference.' },
+        preferredDate: { type: 'STRING', description: 'For scoping_call: the day they most recently agreed, strictly YYYY-MM-DD computed fresh from today. The on-screen calendar opens on this day.' },
       },
       required: ['name', 'email'],
     },
@@ -253,13 +265,16 @@ const ALBION_TOOL = {
     parameters: {
       type: 'OBJECT',
       properties: {
-        intent: { type: 'STRING', enum: ['albion_waitlist', 'albion_contributor'], description: 'Which Albion form to render' },
+        intent: { type: 'STRING', enum: ['albion_waitlist', 'albion_contributor', 'scoping_call'], description: 'Which form to render; scoping_call books a call with the team on a calendar of REAL times — never invent a time yourself' },
         name: { type: 'STRING', description: 'Visitor name as given (contributor register only)' },
         email: { type: 'STRING', description: 'Visitor email as given' },
         organisation: { type: 'STRING', description: 'Their organisation (waitlist only)' },
         sector: { type: 'STRING', enum: CONTRIB_SECTORS, description: 'Their sector, only if they named it' },
         years: { type: 'STRING', enum: CONTRIB_YEARS, description: 'Years of experience (contributor register only)' },
         role: { type: 'STRING', description: 'Their role or field of expertise (contributor register only)' },
+        topic: { type: 'STRING', description: 'For scoping_call: what the call is about, briefly' },
+        preferredTime: { type: 'STRING', description: 'For scoping_call: when they said they would like the call, in their own words' },
+        preferredDate: { type: 'STRING', description: 'For scoping_call: the day they most recently agreed, strictly YYYY-MM-DD computed fresh from today' },
       },
       required: ['intent', 'email'],
     },
@@ -276,7 +291,7 @@ SITE
 
 You are on albion.helix.work, Albion's own site. Lead with Albion: one endpoint, many minds, a receipt for every answer, sovereign work kept sovereign, and the cost curve that bends down. Helix is the family Albion belongs to, not today's subject; mention it only if asked, and point to helix.work for it.
 
-Two next steps live on this page, and they are the only forms you can put up. The waitlist is early access, offered in list order, and it needs their email, their organisation and their sector. The contributor register is for British professionals with deep sector expertise, who are paid, credited and share in what Albion earns; it needs their name, email, sector and how long they have worked in it. Ask which one they want rather than guessing, and never put up the Helix waiting-list form here.`,
+Three next steps live on this page, and they are the only forms you can put up. The waitlist is early access, offered in list order, and it needs their email, their organisation and their sector. The contributor register is for British professionals with deep sector expertise, who are paid, credited and share in what Albion earns; it needs their name, email, sector and how long they have worked in it. And a scoping call books a real time with the team: its calendar shows the genuinely available slots, so never invent or promise a time yourself. Ask which they want rather than guessing, and never put up the Helix waiting-list form here.`,
   },
   cortex: {
     tool: SIGNUP_TOOL,
@@ -286,7 +301,7 @@ SITE
 
 You are on cortex.helix.work, Cortex's own page. Lead with Cortex: sovereign memory for AI, long-lived and self-organising, living on the customer's own infrastructure, so their agents remember and their data never leaves. The other Helix products are context, not the subject, unless the visitor asks about them.
 
-The next step here is the Helix waiting list. When you put the form up, Cortex is the product they came for, so include it.`,
+The next steps here are the Helix waiting list and a scoping call with the team. When you put the waiting-list form up, Cortex is the product they came for, so include it. A scoping call books a real time: its calendar shows the genuinely available slots, so never invent or promise a time yourself.`,
   },
 };
 
@@ -304,15 +319,24 @@ export function siteOf(value) {
 export function toAction(args, site) {
   const albion = site === 'albion';
   const asked = String(args.intent || '');
-  const intent = albion
-    ? (asked === 'albion_contributor' ? 'albion_contributor' : 'albion_waitlist')
-    : 'helix_waitlist';
+  // A scoping call is site-independent: every door books into the same diary.
+  const intent = asked === 'scoping_call'
+    ? 'scoping_call'
+    : albion
+      ? (asked === 'albion_contributor' ? 'albion_contributor' : 'albion_waitlist')
+      : 'helix_waitlist';
   const action = {
     type: 'show_signup_form',
     intent,
     name: clean(args.name, 200),
     email: clean(args.email, 254).toLowerCase(),
   };
+  if (intent === 'scoping_call') {
+    action.topic = clean(args.topic, 300);
+    action.preferredTime = clean(args.preferredTime, 120);
+    action.preferredDate = clean(args.preferredDate, 10);
+    return action;
+  }
   if (intent === 'helix_waitlist') {
     action.products = Array.isArray(args.products) ? args.products.filter((p) => PRODUCTS.includes(p)) : [];
     if (site === 'cortex' && !action.products.includes('Cortex')) action.products.unshift('Cortex');
@@ -363,7 +387,9 @@ async function callGemini(message, history, site = 'helix') {
   let action;
   if (call?.name === 'show_signup_form') {
     action = toAction(call.args || {}, siteOf(site));
-    reply ||= action.intent === 'albion_contributor'
+    reply ||= action.intent === 'scoping_call'
+      ? 'The calendar is on your screen with the real available times. Pick the one that suits, check your details, then press the button. The button press is yours to make, not mine.'
+      : action.intent === 'albion_contributor'
       ? 'Here is the contributor register, pre-filled. Check it over, tick the consent box, then press the button. The button press is yours to make, not mine.'
       : action.intent === 'albion_waitlist'
         ? 'Here is the waitlist form, pre-filled. Check it over, tick the consent box, then press the button. The button press is yours to make, not mine.'
@@ -386,7 +412,8 @@ VOICE RULES
 - No lists, no headings, no formatting of any kind.
 - Never use an em dash, spoken or written. Commas, full stops and parentheses do that work.
 - Sign-up details are collected one per turn: ask for the full name, wait for the answer, then ask for the work email, and wait again. Never ask for two details in one breath. If the visitor offers several details in one go, accept them all without re-asking.
-- Call the show_action_form tool only once the visitor has actually spoken both a name and an email. Never fill it with a guessed or example value; if the email is missing, ask for it. Use only the intents this site's forms exist for, as described above; if the visitor wants a call or anything else, use this site's main form and say the team will follow up.
+- Call the show_action_form tool only once the visitor has actually spoken both a name and an email. Never fill it with a guessed or example value; if the email is missing, ask for it. Use only the intents this site's forms exist for, as described above.
+- A call with the team is bookable: use intent scoping_call. Always use check_availability before proposing times, offer at most two or three real options out loud, and their pick becomes preferredTime. If the lookup fails, take their preference in their own words; the on-screen calendar shows the real times either way.
 - After the tool call, tell them the form is on their screen and the button press is theirs to make.
 - Never claim to have submitted anything.`;
 
@@ -412,6 +439,9 @@ function mintVoiceSession(site = 'helix') {
       voiceId: VERA_VOICE_ID,
       voiceSpeed: VERA_VOICE_SPEED,
       site: SITE_HOSTS[resolved],
+      // The voice service reads slots here for check_availability, so spoken
+      // Vera offers REAL times. Same diary as mindlynx.ai, by construction.
+      availabilityUrl: `${MINDLYNX_ORIGIN}/api/availability`,
       keyterms: ['MindLynx', 'Helix', 'Albion', 'Cortex', 'Tachyon', 'Pulse', 'Metis', 'Vera'],
       exp: Math.floor(Date.now() / 1000) + 120, // the window to connect, not the session length
     }),
@@ -561,6 +591,56 @@ async function handleVoiceToken(req, res) {
   }
 }
 
+/** Bookable scoping-call slots, read from the shared MindLynx diary. */
+async function handleAvailability(req, res, query) {
+  const limited = rateLimit('avail', clientIp(req));
+  if (!limited.ok) return json(res, 429, { ok: false }, { 'Retry-After': String(limited.retryAfter) });
+  const qs = new URLSearchParams();
+  for (const key of ['from', 'to']) {
+    const v = query.get(key);
+    if (v) qs.set(key, clean(v, 40));
+  }
+  try {
+    const r = await fetch(`${MINDLYNX_ORIGIN}/api/availability${qs.size ? `?${qs}` : ''}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = await r.json();
+    return json(res, r.ok ? 200 : 502, body, { 'Cache-Control': 'public, max-age=60' });
+  } catch {
+    return json(res, 502, { ok: false }); // the form shows its diary-unreachable line
+  }
+}
+
+/**
+ * Book the slot the visitor picked. The human pressed the button, so the
+ * calendar entry is theirs to make; Vera never calls this. Validated here
+ * before it travels, so junk never reaches the shared diary.
+ */
+async function handleBook(req, res) {
+  const limited = rateLimit('book', clientIp(req));
+  if (!limited.ok) return json(res, 429, { ok: false }, { 'Retry-After': String(limited.retryAfter) });
+  const body = await readJson(req);
+  const name = clean(body.name, 200);
+  const email = clean(body.email, 254).toLowerCase();
+  const start = new Date(String(body.start ?? ''));
+  const soon = Date.now() - 60_000;
+  const horizon = Date.now() + 60 * 86_400_000;
+  if (!name || !EMAIL_RE.test(email) || isNaN(start.getTime()) || start.getTime() < soon || start.getTime() > horizon) {
+    return json(res, 400, { ok: false, error: 'A name, a valid email and a real slot are required.' });
+  }
+  try {
+    const r = await fetch(`${MINDLYNX_ORIGIN}/api/book`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ start: start.toISOString(), name, email }),
+      signal: AbortSignal.timeout(12_000),
+    });
+    return json(res, r.ok ? 200 : 502, { ok: r.ok });
+  } catch {
+    return json(res, 502, { ok: false });
+  }
+}
+
 async function handleLog(req, res) {
   const ip = clientIp(req);
   const limited = rateLimit('log', ip);
@@ -608,6 +688,10 @@ export const server = createServer(async (req, res) => {
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);
     if (req.method === 'POST' && path === '/api/voice/token') return await handleVoiceToken(req, res);
     if (req.method === 'POST' && path === '/api/log') return await handleLog(req, res);
+    if (req.method === 'GET' && path === '/api/availability') {
+      return await handleAvailability(req, res, new URL(req.url, 'http://local').searchParams);
+    }
+    if (req.method === 'POST' && path === '/api/book') return await handleBook(req, res);
     if (req.method === 'POST' && path === '/api/albion/waitlist') {
       return await handleAlbionCapture(req, res, validateAlbionWaitlist, 'albion-waitlist.ndjson');
     }

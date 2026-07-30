@@ -26,21 +26,21 @@
     helix: {
       who: 'Vera · Helix front of house',
       greeting: "Hello. I'm <b>Vera</b>, Helix's front of house. Ask me what Helix is, what the products do, or who it is for. If you like what you hear I can put you on the waiting list, though the final button press is always yours. What brought you along?",
-      chips: ['What is Helix?', 'What does sovereign mean here?', 'How do I hire an agent?', 'What can developers reuse?', 'Put me on the list'],
+      chips: ['What is Helix?', 'What does sovereign mean here?', 'How do I hire an agent?', 'What can developers reuse?', 'Book a call'],
       placeholder: 'Ask Helix anything...',
       launcher: 'Ask',
     },
     albion: {
       who: 'Vera · Albion front of house',
       greeting: "Hello. This page is an agent; I am it. My name is <b>Vera</b>. Ask me what Albion is, how it keeps sovereign work sovereign, or why it costs less over time. I can put you on the waitlist or start you on the contributor register, though the final button press will always be yours.",
-      chips: ['What is Albion?', 'What does the receipt show?', 'How does sovereign work stay sovereign?', 'Why does it cost less over time?', 'Get paid for my expertise'],
+      chips: ['What is Albion?', 'What does the receipt show?', 'How does sovereign work stay sovereign?', 'Why does it cost less over time?', 'Book a call'],
       placeholder: 'Ask Albion anything...',
       launcher: 'Ask',
     },
     cortex: {
       who: 'Vera · Cortex front of house',
       greeting: "Hello. This page is an agent; I am it. My name is <b>Vera</b>. Ask me what Cortex is, where your memory actually lives, or how developers build on it. I can put you on the waiting list too, though the final button press will always be yours.",
-      chips: ['What is Cortex?', 'Where does the memory live?', 'What can developers build on it?', 'How is it sovereign?', 'Put me on the list'],
+      chips: ['What is Cortex?', 'Where does the memory live?', 'What can developers build on it?', 'How is it sovereign?', 'Book a call'],
       placeholder: 'Ask Cortex anything...',
       launcher: 'Ask',
     },
@@ -79,6 +79,20 @@
         { key: 'sector', type: 'select', label: 'Sector', options: CONTRIB_SECTORS },
         { key: 'years', type: 'select', label: 'Years in it', options: YEARS },
         { key: 'role', type: 'text', label: 'Your role or field (optional)', optional: true },
+      ],
+    },
+    scoping_call: {
+      title: 'Book a call with the team',
+      kind: 'booking', // books a real slot via /api/book; not a list signup
+      endpoint: '/api/book',
+      button: 'Pick a time first',
+      done: 'your call is booked.',
+      tail: 'A calendar invitation is on its way to your inbox.',
+      fields: [
+        { key: 'name', type: 'text', label: 'Name' },
+        { key: 'email', type: 'email', label: 'Work email' },
+        { key: 'topic', type: 'text', label: 'What the call is about (optional)', optional: true },
+        { key: 'time', type: 'text', label: 'Pick a time on the calendar below', optional: true },
       ],
     },
     helix_waitlist: {
@@ -152,6 +166,17 @@
     '.vera .v-btn:hover{border-color:var(--lime)}',
     '.vera .v-btn.primary{background:var(--lime);border-color:var(--lime);color:#04070D}',
     '.vera .v-btn[disabled]{opacity:.55;cursor:default}',
+    '.vera .cal-wrap{display:grid;gap:8px}',
+    '.vera .cal-head{display:flex;align-items:center;justify-content:space-between;gap:10px}',
+    '.vera .cal-day{font-family:"Spline Sans Mono",monospace;font-size:12px;letter-spacing:.06em;color:var(--lime)}',
+    '.vera .cal-prev,.vera .cal-next{background:none;border:1px solid var(--line);color:var(--muted);font-size:15px;line-height:1;padding:5px 11px;cursor:pointer}',
+    '.vera .cal-prev:hover:not([disabled]),.vera .cal-next:hover:not([disabled]){border-color:var(--lime);color:var(--text)}',
+    '.vera .cal-prev[disabled],.vera .cal-next[disabled]{opacity:.35;cursor:default}',
+    '.vera .cal-slots{display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}',
+    '.vera .cal-slot{font-family:"Spline Sans Mono",monospace;font-size:12px;border:1px solid var(--line);color:var(--muted);background:none;padding:7px 10px;cursor:pointer}',
+    '.vera .cal-slot:hover{border-color:var(--lime);color:var(--text)}',
+    '.vera .cal-slot.sel{background:var(--lime);border-color:var(--lime);color:#04070D}',
+    '.vera .cal-note{font-size:13px;color:var(--muted)}',
   ].join('\n');
   var styleEl = document.createElement('style');
   styleEl.textContent = CSS;
@@ -280,7 +305,7 @@
       if (oldGo && !oldGo.disabled) { oldGo.disabled = true; oldGo.textContent = 'Replaced below'; }
     }
 
-    var values = { name: action.name || '', email: email, organisation: action.organisation || '', sector: action.sector || '', years: action.years || '', role: action.role || '' };
+    var values = { name: action.name || '', email: email, organisation: action.organisation || '', sector: action.sector || '', years: action.years || '', role: action.role || '', topic: action.topic || '', time: action.preferredTime || '' };
     var html = '<b>' + esc(spec.title) + '</b><div class="mini-form">';
     spec.fields.forEach(function (f) {
       if (f.type === 'checks') {
@@ -297,11 +322,47 @@
         html += '<input type="' + f.type + '" data-field="' + f.key + '" value="' + esc(values[f.key]) + '" placeholder="' + esc(f.label) + '">';
       }
     });
-    html += '<label class="consent"><input type="checkbox" data-consent> <span>Keep my details and email me about early access (<a href="#privacy">privacy notice</a>)</span></label>'
-      + '<button class="v-btn primary v-go" type="button">' + esc(spec.button) + '</button></div>';
+    if (spec.kind !== 'booking') {
+      // A booking is a meeting the visitor asked for, not a mailing list: no consent box.
+      html += '<label class="consent"><input type="checkbox" data-consent> <span>Keep my details and email me about early access (<a href="#privacy">privacy notice</a>)</span></label>';
+    }
+    html += '<button class="v-btn primary v-go" type="button">' + esc(spec.button) + '</button></div>';
 
     var bubble = el(html, 'agent');
     lastForm = bubble;
+
+    if (spec.kind === 'booking') {
+      var chosenSlot = null;
+      var timeField = bubble.querySelector('[data-field="time"]');
+      var goBtn = bubble.querySelector('.v-go');
+      buildSlotPicker(bubble, timeField, goBtn, action.preferredDate || '', action.preferredTime || '', function (sl) {
+        chosenSlot = sl;
+      });
+      goBtn.addEventListener('click', function () {
+        var n = (bubble.querySelector('[data-field="name"]').value || '').trim();
+        var e2 = (bubble.querySelector('[data-field="email"]').value || '').trim();
+        if (!n || !/.+@.+\..+/.test(e2)) { agentSay('I still need a name and a real email on that form.'); return; }
+        if (!chosenSlot) { agentSay('Pick a time on the calendar first, then the button books it.'); return; }
+        goBtn.disabled = true;
+        fetch(spec.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start: chosenSlot.start, name: n, email: e2 }),
+        })
+          .then(function (r) { return r.ok ? r.json().catch(function () { return { ok: true }; }) : null; })
+          .then(function (d) {
+            if (!d || d.ok === false) throw new Error('book failed');
+            goBtn.textContent = 'Booked';
+            agentSay('<b>' + esc(n.split(' ')[0]) + ', ' + esc(spec.done) + '</b> ' + esc(spec.tail));
+          })
+          .catch(function () {
+            goBtn.disabled = false;
+            agentSay('That slot did not book, it may have just been taken. Pick another and press the button again.');
+          });
+      });
+      return;
+    }
+
     bubble.querySelector('.v-go').addEventListener('click', function () {
       var payload = { consent: true };
       var missing = null;
@@ -336,6 +397,155 @@
           go.disabled = false;
           agentSay('That did not save. Give the button one more press, or use the form further down the page.');
         });
+    });
+  }
+
+  /* --------------------------- the slot picker ----------------------------
+     A one-day view with prev/next arrows, ported from mindlynx.ai's companion.
+     Days come from /api/availability (this server proxies the shared MindLynx
+     diary) in 7-day windows; browsing past the loaded window fetches the next,
+     and browsing back past the anchor reloads from today. If the diary is
+     unreachable, an honest line replaces the calendar and nothing books. */
+  function buildSlotPicker(bubble, timeField, go, preferredDate, preferredTime, onPick) {
+    function dayKey(iso) {
+      return new Date(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/London' });
+    }
+    function timeLabel(iso) {
+      return new Date(iso).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Europe/London' });
+    }
+    function slotMinutes(iso) {
+      var parts = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: 'numeric', hour12: false, timeZone: 'Europe/London' })
+        .format(new Date(iso)).split(':');
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+    /* The agreed time as minutes-of-day, out of whatever wording the model
+       passed ("2:00 pm", "Monday 3 August at 2pm", "14:30"). Null if none. */
+    var wantedMinutes = (function () {
+      var ampm = String(preferredTime || '').match(/(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)/i);
+      if (ampm) {
+        var h = parseInt(ampm[1], 10) % 12;
+        if (ampm[3].toLowerCase() === 'pm') h += 12;
+        return h * 60 + (ampm[2] ? parseInt(ampm[2], 10) : 0);
+      }
+      var h24 = String(preferredTime || '').match(/\b(\d{1,2})[:.](\d{2})\b/);
+      if (h24) return parseInt(h24[1], 10) * 60 + parseInt(h24[2], 10);
+      return null;
+    })();
+
+    var days = [];
+    var idx = 0, fetching = false, exhausted = false, chosenStart = '';
+
+    var wrap = document.createElement('div');
+    wrap.className = 'cal-wrap';
+    wrap.innerHTML =
+      '<div class="cal-head">'
+      + '<button type="button" class="cal-prev" aria-label="Earlier day">&#8249;</button>'
+      + '<span class="cal-day"></span>'
+      + '<button type="button" class="cal-next" aria-label="Later day">&#8250;</button>'
+      + '</div><div class="cal-slots"></div>';
+    var dayTitle = wrap.querySelector('.cal-day');
+    var slotsBox = wrap.querySelector('.cal-slots');
+    var prevBtn = wrap.querySelector('.cal-prev');
+    var nextBtn = wrap.querySelector('.cal-next');
+
+    function ingest(list) {
+      list.forEach(function (sl) {
+        var k = dayKey(sl.start);
+        var d = null;
+        for (var i = 0; i < days.length; i++) if (days[i].key === k) { d = days[i]; break; }
+        if (!d) { d = { key: k, slots: [] }; days.push(d); }
+        if (!d.slots.some(function (x) { return x.start === sl.start; })) d.slots.push(sl);
+      });
+      days.forEach(function (d) { d.slots.sort(function (a, b) { return a.start.localeCompare(b.start); }); });
+      days.sort(function (a, b) { return a.slots[0].start.localeCompare(b.slots[0].start); });
+    }
+    function fetchWindow(from) {
+      fetching = true;
+      return fetch('/api/availability' + (from ? '?from=' + encodeURIComponent(from) : ''))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (av) {
+          fetching = false;
+          if (!av || !av.ok || !av.slots || !av.slots.length) return false;
+          ingest(av.slots);
+          return true;
+        })
+        .catch(function () { fetching = false; return false; });
+    }
+    function render() {
+      var d = days[idx];
+      if (!d) return;
+      dayTitle.textContent = d.key;
+      prevBtn.disabled = idx === 0 && new Date(d.slots[0].start).getTime() < Date.now() + 26 * 3600000;
+      nextBtn.disabled = exhausted && idx === days.length - 1;
+      slotsBox.innerHTML = '';
+      d.slots.forEach(function (sl) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cal-slot' + (sl.start === chosenStart ? ' sel' : '');
+        b.textContent = timeLabel(sl.start);
+        b.addEventListener('click', function () { select(sl); render(); });
+        slotsBox.appendChild(b);
+      });
+      /* The chosen time stays centred in view. Manual maths rather than
+         scrollIntoView so the chat's own scroll is never disturbed. */
+      var sel = slotsBox.querySelector('.sel');
+      if (sel) slotsBox.scrollTop = sel.offsetTop - slotsBox.clientHeight / 2 + sel.clientHeight / 2;
+    }
+    function select(sl) {
+      chosenStart = sl.start;
+      if (timeField) timeField.value = sl.label || (dayKey(sl.start) + ', ' + timeLabel(sl.start));
+      go.textContent = 'Book ' + (sl.label || timeLabel(sl.start));
+      onPick(sl);
+    }
+    prevBtn.addEventListener('click', function () {
+      if (idx > 0) { idx--; render(); return; }
+      if (fetching) return;
+      // Browsed back past the anchor: load from today and stay oriented.
+      var current = days[idx] && days[idx].key;
+      fetchWindow('').then(function (ok) {
+        if (!ok) return;
+        var i = -1;
+        for (var j = 0; j < days.length; j++) if (days[j].key === current) { i = j; break; }
+        idx = Math.max(0, i - 1);
+        render();
+      });
+    });
+    nextBtn.addEventListener('click', function () {
+      if (idx < days.length - 1) { idx++; render(); return; }
+      if (fetching || exhausted) return;
+      // Past the loaded window: pull the next seven days.
+      var lastDay = days[days.length - 1];
+      var lastStart = lastDay && lastDay.slots[lastDay.slots.length - 1] && lastDay.slots[lastDay.slots.length - 1].start;
+      var from = lastStart ? new Date(new Date(lastStart).getTime() + 86400000).toISOString().slice(0, 10) : '';
+      var current = days[idx] && days[idx].key;
+      fetchWindow(from).then(function (ok) {
+        if (!ok) { exhausted = true; render(); return; }
+        var i = -1;
+        for (var j = 0; j < days.length; j++) if (days[j].key === current) { i = j; break; }
+        idx = Math.min(i + 1, days.length - 1);
+        render();
+      });
+    });
+
+    fetchWindow(preferredDate || '').then(function (ok) {
+      if (!ok || !days.length) {
+        var note = document.createElement('p');
+        note.className = 'cal-note';
+        note.textContent = 'The diary is unreachable just now. Tell Vera when suits you and the team will confirm by email.';
+        if (timeField) timeField.insertAdjacentElement('afterend', note);
+        return;
+      }
+      idx = 0;
+      // A time was agreed in conversation: arrive with it selected and armed.
+      if (wantedMinutes !== null) {
+        var match = null;
+        for (var i = 0; i < days[idx].slots.length; i++) {
+          if (slotMinutes(days[idx].slots[i].start) === wantedMinutes) { match = days[idx].slots[i]; break; }
+        }
+        if (match) select(match);
+      }
+      if (timeField) timeField.insertAdjacentElement('afterend', wrap);
+      render();
     });
   }
 
@@ -556,6 +766,7 @@
                 intent: FORMS[data.intent] ? data.intent : DEFAULT_INTENT,
                 name: data.name, email: data.email, organisation: data.organisation,
                 sector: data.sector, years: data.years, role: data.role, products: data.products,
+                topic: data.topic, preferredTime: data.preferredTime, preferredDate: data.preferredDate,
               });
             },
             onDisconnected: function () {
