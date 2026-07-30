@@ -544,7 +544,14 @@
               live.settle = setTimeout(finaliseBot, TURN_SETTLE_MS);
             },
             onServerMessage: function (data) {
-              if (!data || data.type !== 'show_signup_form') return;
+              /* The voice service names this message `show_action_form` (its tool
+                 mirrors mindlynx.ai's); our own text agent says `show_signup_form`.
+                 Listening for only the latter DROPPED every spoken form: Vera told
+                 the visitor "it's on your screen" while the browser discarded it. */
+              if (!data) return;
+              if (data.type !== 'show_action_form' && data.type !== 'show_signup_form') return;
+              /* MindLynx-only intents (scoping_call, design_partner, send_info) have
+                 no form here: land on THIS site's own form, per the site config. */
               showForm({
                 intent: FORMS[data.intent] ? data.intent : DEFAULT_INTENT,
                 name: data.name, email: data.email, organisation: data.organisation,
