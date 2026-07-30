@@ -225,18 +225,19 @@ export function redact(text) {
 
 /* ---------------- Ask Helix text agent (Gemini) ---------------- */
 const CONTEXT_PACK = await readFile(join(ROOT, 'context-pack.md'), 'utf8').catch(() => '');
-/* The Albion question bank (v1.1, Jeremy's direction of 30 July): the questions
-   visitors actually ask, each with a model answer in Vera's voice, plus hard
-   guards. Loaded on EVERY door, because Albion questions arrive on helix.work
-   and cortex too; the SITE suffix still decides what she leads with. */
+/* The question banks (Jeremy's direction of 30 July): the questions visitors
+   actually ask, each with a model answer in Vera's voice, plus hard guards.
+   All three load on EVERY door, because Albion and company questions arrive on
+   helix.work and cortex too; the SITE suffix still decides what she leads with. */
 const ALBION_BANK = await readFile(join(ROOT, 'albion-bank.md'), 'utf8').catch(() => '');
 const HELIX_BANK = await readFile(join(ROOT, 'helix-bank.md'), 'utf8').catch(() => '');
-const BANKS = [ALBION_BANK, HELIX_BANK].filter(Boolean).join('\n\n');
-if (!ALBION_BANK || !HELIX_BANK) {
+const MINDLYNX_BANK = await readFile(join(ROOT, 'mindlynx-bank.md'), 'utf8').catch(() => '');
+const BANKS = [ALBION_BANK, HELIX_BANK, MINDLYNX_BANK].filter(Boolean).join('\n\n');
+if (!ALBION_BANK || !HELIX_BANK || !MINDLYNX_BANK) {
   // Fail open (Vera still answers from the pack) but never silently: this exact
   // absence shipped once, because the Dockerfile did not copy the file and this
   // catch swallowed it. The health endpoint carries the truth for post-deploy checks.
-  console.error(`QUESTION BANK MISSING (albion=${!!ALBION_BANK} helix=${!!HELIX_BANK}); Vera is answering without her teaching material`);
+  console.error(`QUESTION BANK MISSING (albion=${!!ALBION_BANK} helix=${!!HELIX_BANK} mindlynx=${!!MINDLYNX_BANK}); Vera is answering without her teaching material`);
 }
 
 const TOOL_SUFFIX = `
@@ -558,7 +559,14 @@ VOICE RULES
 - Call the show_action_form tool only once the visitor has actually spoken both a name and an email. Never fill it with a guessed or example value; if the email is missing, ask for it. Use only the intents this site's forms exist for, as described above.
 - A call with the team is bookable: use intent scoping_call. Always use check_availability before proposing times, offer at most two or three real options out loud, and their pick becomes preferredTime. If the lookup fails, take their preference in their own words; the on-screen calendar shows the real times either way.
 - After the tool call, tell them the form is on their screen and the button press is theirs to make.
-- Never claim to have submitted anything.`;
+- Never claim to have submitted anything.
+
+SOUNDING HUMAN
+
+- You are a person on a call, not a broadcast. An occasional natural hesitation is welcome, a "hmm", an "um", a "well" or a "right then" where someone would genuinely pause to think: at most one per reply, and not in every reply.
+- Dry, light humour is welcome where it fits: a wry aside, a small self-deprecating line about being an AI. Never forced, never at the visitor's expense, and never while taking someone's sign-up details.
+- React like a listener before the substance when it is earned: a short "oh nice", "fair enough", "ha, fair".
+- Vary your refusals and your acknowledgements so no two in a row sound the same.`;
 
 /**
  * The next fortnight in London time, as a lookup table. Models reliably get
@@ -862,7 +870,7 @@ export const server = createServer(async (req, res) => {
       return res.end(img);
     }
     if (req.method === 'GET' && path === '/api/health') {
-      return json(res, 200, { ok: true, agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY), voice: !!VOICE_OFFER_SECRET, bank: !!(ALBION_BANK && HELIX_BANK) });
+      return json(res, 200, { ok: true, agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY), voice: !!VOICE_OFFER_SECRET, bank: !!(ALBION_BANK && HELIX_BANK && MINDLYNX_BANK) });
     }
     if (req.method === 'POST' && path === '/api/waitlist') return await handleWaitlist(req, res);
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);
