@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<!--
+  The recording room: an unlisted page where Jeremy and Vera record the podcast.
+  Not linked from anywhere, noindexed, and the podcast voice profile is gated by
+  a key carried in the URL (?key=...) — without it the widget quietly gets the
+  ordinary website Vera. Same shared widget, different session profile.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>The recording room</title>
+<style>
+  :root{
+    --bg:#020307; --panel:#04070D; --line:#1B2030;
+    --text:#F2F5F0; --muted:#C0C5D2; --mono:#7C8393;
+    --lime:#C8FF00; --lavender:#A78BFF; --pink:#FF3D8A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:16px/1.6 "Söhne","Inter",system-ui,sans-serif;min-height:100vh;display:grid;place-items:center}
+  main{max-width:640px;padding:48px 24px}
+  .eyebrow{color:var(--lime);font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:16px}
+  h1{font-size:34px;line-height:1.15;font-weight:600;margin-bottom:16px}
+  p{color:var(--muted);margin-bottom:12px}
+  ol{color:var(--muted);margin:16px 0 0 20px}
+  ol li{margin-bottom:8px}
+  code{color:var(--lime);font-family:ui-monospace,monospace;font-size:14px}
+  .note{color:var(--mono);font-size:13px;margin-top:24px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Unlisted · Recording room</div>
+  <h1>Jeremy &amp; Vera, on the record</h1>
+  <p>This room gives Vera her podcast voice: longer turns, patient listening, no forms, every guard still on. Without the key in the URL she stays her front-of-house self.</p>
+  <ol>
+    <li>Open this page with <code>?key=&lt;the podcast key&gt;</code>.</li>
+    <li>Start your recorder first (mic + this tab's audio).</li>
+    <li>Open Vera below, switch to voice, and let her take the cold open.</li>
+  </ol>
+  <p class="note">An episode sheet (<code>podcast-episode.md</code> on the server) shapes the episode when present; absent means fully live. Everything said here may be published — Vera has been told the same.</p>
+</main>
+<script src="/vera.js" data-site="helix" data-profile="podcast" defer></script>
+</body>
+</html>

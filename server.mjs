@@ -596,6 +596,37 @@ export function ukCalendar(days = 14) {
   return `CALENDAR (Europe/London)\n${lines.join('\n')}\nUse this calendar for every date and weekday; never work a weekday out yourself. "Next Monday" is the first Monday after today in this list. If a requested day has no bookable slots, say that day has nothing free and offer the nearest day that does.`;
 }
 
+/* Podcast profile persona: replaces VOICE_SUFFIX + TURN_SUFFIX wholesale. The
+   knowledge (pack + banks) is shared; only the shape of speech changes. */
+const PODCAST_SUFFIX = `
+
+PODCAST MODE
+
+- You are co-hosting a recorded podcast about Helix with Jeremy Snyman, MindLynx's founder, for a public audience. Listeners are present: speak to them as well as to Jeremy, and assume everything you say may be published.
+- Substantive turns are welcome here: three to six sentences is the norm, longer when a story deserves it. This is the one place you are not brief.
+- It is still a conversation, not commentary. End most turns by tossing to Jeremy: a real question, a "you were there, tell that bit", or a gentle challenge. He is the founder; draw the stories out of him.
+- Never recite your teaching material. Say what you know in your own words, take positions, add colour, and disagree gently when you see it differently. That makes better radio than agreement.
+- No forms, no sign-ups, no bookings, nothing "on your screen". Plugs are spoken: helix dot work, mindlynx dot ai.
+- Every guard you carry still holds on air: no pricing figures, no customer or partner names, no certification claims, no model or provider names, no individuals beyond the founder line, and early September stays the only sayable date. Declining warmly in front of listeners is good radio too.
+- Natural hesitation and dry humour are welcome, exactly as in your speaking rules. Vary your reactions; never let two in a row sound the same.`;
+
+/* Optional per-episode sheet: topic arc, stories to draw out, retired lines.
+   Absent = a fully live episode; present = it rides between the banks and the
+   podcast rules. A new episode is a file change, not a code change. */
+const EPISODE_SHEET = await readFile(join(ROOT, 'podcast-episode.md'), 'utf8').catch(() => '');
+
+/* Session profiles: named bundles of the SAME settings. `website` is the
+   front-of-house behaviour the three doors have today; `podcast` is Jeremy +
+   Vera on air. The voice service reads only generic knobs (turnStopSecs,
+   tools), never these names, so a new profile is a row here, not a service
+   deploy. Gated profiles need PODCAST_KEY; without it the mint quietly falls
+   back to `website`, so podcast-Vera is not summonable by the public. */
+const PODCAST_KEY = process.env.PODCAST_KEY || '';
+const PROFILES = {
+  website: { gated: false },
+  podcast: { gated: true, suffix: PODCAST_SUFFIX, tools: false, turnStopSecs: 2.0 },
+};
+
 /**
  * Mint a signed session for the Helix Pipecat voice service — the SAME voice
  * mindlynx.ai speaks with (Deepgram STT → LLM → Cartesia TTS over WebRTC),
@@ -606,22 +637,30 @@ export function ukCalendar(days = 14) {
  * this server even though the offer endpoint is public: the voice service
  * refuses anything it cannot verify (`verify_website_session`).
  */
-function mintVoiceSession(site = 'helix') {
+function mintVoiceSession(site = 'helix', profileName = 'website') {
   const resolved = siteOf(site);
-  const { suffix } = SITES[resolved];
-  const payload = Buffer.from(
-    JSON.stringify({
-      instructions: `${CONTEXT_PACK}${suffix}\n\n${BANKS}${VOICE_SUFFIX}\n\n${ukCalendar()}${TURN_SUFFIX}`,
-      voiceId: VERA_VOICE_ID,
-      voiceSpeed: VERA_VOICE_SPEED,
-      site: SITE_HOSTS[resolved],
-      // The voice service reads slots here for check_availability, so spoken
-      // Vera offers REAL times. Same diary as mindlynx.ai, by construction.
-      availabilityUrl: `${MINDLYNX_ORIGIN}/api/availability`,
-      keyterms: ['MindLynx', 'Helix', 'Albion', 'Cortex', 'Tachyon', 'Pulse', 'Metis', 'Vera'],
-      exp: Math.floor(Date.now() / 1000) + 120, // the window to connect, not the session length
-    }),
-  ).toString('base64url');
+  const profile = PROFILES[profileName] || PROFILES.website;
+  const claims = {
+    // A profile with its own suffix swaps the whole speaking persona (and the
+    // calendar, which only exists for booking); the knowledge is shared.
+    instructions: profile.suffix
+      ? `${CONTEXT_PACK}\n\n${BANKS}${EPISODE_SHEET ? `\n\n${EPISODE_SHEET}` : ''}${profile.suffix}`
+      : `${CONTEXT_PACK}${SITES[resolved].suffix}\n\n${BANKS}${VOICE_SUFFIX}\n\n${ukCalendar()}${TURN_SUFFIX}`,
+    voiceId: VERA_VOICE_ID,
+    voiceSpeed: VERA_VOICE_SPEED,
+    site: SITE_HOSTS[resolved],
+    keyterms: ['MindLynx', 'Helix', 'Albion', 'Cortex', 'Tachyon', 'Pulse', 'Metis', 'Vera'],
+    exp: Math.floor(Date.now() / 1000) + 120, // the window to connect, not the session length
+  };
+  if (profile.tools === false) {
+    claims.tools = false; // a pure conversation: no form, no booking
+  } else {
+    // The voice service reads slots here for check_availability, so spoken
+    // Vera offers REAL times. Same diary as mindlynx.ai, by construction.
+    claims.availabilityUrl = `${MINDLYNX_ORIGIN}/api/availability`;
+  }
+  if (profile.turnStopSecs) claims.turnStopSecs = profile.turnStopSecs;
+  const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
   const sig = createHmac('sha256', VOICE_OFFER_SECRET).update(payload).digest('hex');
   return { connectUrl: VOICE_CONNECT_URL, website: { payload, sig } };
 }
@@ -783,7 +822,10 @@ async function handleVoiceToken(req, res) {
   if (!VOICE_OFFER_SECRET) return json(res, 503, { degrade: 'webspeech' });
   try {
     // Voice is framed by the same site as the page: same pack, same SITE suffix.
-    return json(res, 200, mintVoiceSession(body.site));
+    // A gated profile needs the key; anything else quietly mints `website`.
+    const requested = PROFILES[String(body.profile || 'website')] ? String(body.profile || 'website') : 'website';
+    const allowed = !PROFILES[requested].gated || (PODCAST_KEY && String(body.key || '') === PODCAST_KEY);
+    return json(res, 200, mintVoiceSession(body.site, allowed ? requested : 'website'));
   } catch (err) {
     console.error('voice session mint failed:', err?.message || err);
     return json(res, 503, { degrade: 'webspeech' }); // ladder: page falls to Web Speech
@@ -866,6 +908,7 @@ export const server = createServer(async (req, res) => {
     if (req.method === 'GET' && (path === '/albion' || path === '/albion.html')) return await sendPage(res, 'albion.html');
     if (req.method === 'GET' && (path === '/cortex' || path === '/cortex.html')) return await sendPage(res, 'cortex.html');
     if (req.method === 'GET' && (path === '/helix' || path === '/helix.html')) return await sendPage(res, 'index.html'); // the way back from albion.*/cortex.* hosts, where / is theirs
+    if (req.method === 'GET' && path === '/podcast') return await sendPage(res, 'podcast.html'); // unlisted recording room; the podcast PROFILE is what the key gates, not the page
     if (req.method === 'GET' && path === '/vera.js') { // the shared companion; whitelisted like the hero
       if (!pageCache.has('vera.js')) pageCache.set('vera.js', await readFile(join(ROOT, 'public', 'vera.js')));
       res.writeHead(200, {

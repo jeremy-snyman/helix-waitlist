@@ -20,6 +20,12 @@
   var tag = document.querySelector('script[src*="vera.js"][data-site]');
   var legacy = document.querySelector('[data-vera]');
   var SITE = (tag && tag.getAttribute('data-site')) || (legacy && legacy.getAttribute('data-vera')) || 'helix';
+  /* Voice-session profile (website is the default; podcast is the recording
+     room). Gated profiles also need the key, carried in the page URL so it is
+     never baked into a served file. */
+  var PROFILE = (tag && tag.getAttribute('data-profile')) || '';
+  var PROFILE_KEY = '';
+  try { PROFILE_KEY = new URLSearchParams(window.location.search).get('key') || ''; } catch (_e) {}
 
   /* --------------------------- per-site wiring --------------------------- */
   var SITES = {
@@ -686,7 +692,9 @@
     return fetch('/api/voice/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ site: SITE }),
+      body: JSON.stringify(
+        PROFILE ? { site: SITE, profile: PROFILE, key: PROFILE_KEY } : { site: SITE },
+      ),
     })
       .then(function (r) { if (!r.ok) throw new Error('mint ' + r.status); return r.json(); })
       .then(function (session) {
