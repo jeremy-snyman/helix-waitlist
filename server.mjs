@@ -624,7 +624,7 @@ const EPISODE_SHEET = await readFile(join(ROOT, 'podcast-episode.md'), 'utf8').c
 const PODCAST_KEY = process.env.PODCAST_KEY || '';
 const PROFILES = {
   website: { gated: false },
-  podcast: { gated: true, suffix: PODCAST_SUFFIX, tools: false, turnStopSecs: 2.0 },
+  podcast: { gated: true, suffix: PODCAST_SUFFIX, tools: false, turnStopSecs: 2.0, record: true },
 };
 
 /**
@@ -660,6 +660,10 @@ function mintVoiceSession(site = 'helix', profileName = 'website') {
     claims.availabilityUrl = `${MINDLYNX_ORIGIN}/api/availability`;
   }
   if (profile.turnStopSecs) claims.turnStopSecs = profile.turnStopSecs;
+  // Recording rides ONLY in the signed blob of a profile that declares it (the
+  // /podcast page says so out loud); the service also needs its bucket configured,
+  // so neither side alone can put a public visitor on tape.
+  if (profile.record === true) claims.record = true;
   const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
   const sig = createHmac('sha256', VOICE_OFFER_SECRET).update(payload).digest('hex');
   return { connectUrl: VOICE_CONNECT_URL, website: { payload, sig } };
