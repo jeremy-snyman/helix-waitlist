@@ -627,6 +627,62 @@ const PROFILES = {
   podcast: { gated: true, suffix: PODCAST_SUFFIX, tools: false, turnStopSecs: 2.0, record: true },
 };
 
+/* Core-managed profiles: helix-core owns an editable copy of these rows
+   (managed from the Helix UI, voice:admin), fetched here on boot and every
+   five minutes over the internal HMAC-v2 mesh. Fetched rows merge FIELD-WISE
+   over the baked map by name — an admin can retune turnStopSecs without
+   pasting the whole persona — and on any failure the last good fetch (or the
+   baked map) keeps serving: the marketing site must never break because core
+   is down. The banks and context pack are NOT fetchable; core tunes persona
+   and patience, never knowledge. */
+const HELIX_CORE_ORIGIN = process.env.HELIX_CORE_ORIGIN || '';
+const INTERNAL_SHARED_SECRET = process.env.INTERNAL_SHARED_SECRET || '';
+const CORE_PROFILE_PATH = '/api/internal/website/voice-profiles';
+let coreProfiles = null; // last good fetch; null = never fetched
+let coreProfilesAt = 0;
+
+function signInternalGet(path) {
+  /* helix-core's HMAC v2 (utils/hmacV2.ts): the verifier reconstructs the
+     path WITHOUT the query string and hashes an empty body for GETs. The
+     seven vectors in core's hmacV2.test.ts are the contract — never the
+     golden-vectors file, which pins the dead v1 scheme. */
+  const ts = Date.now().toString();
+  const bodyHash = createHash('sha256').update('').digest('hex');
+  const payload = `v2\nGET\n${path}\n\n\n${bodyHash}\n${ts}`;
+  const sig = createHmac('sha256', INTERNAL_SHARED_SECRET).update(payload).digest('base64');
+  return { 'x-caller': 'helix-website', 'x-timestamp': ts, 'x-signature': sig, 'x-helix-sig-v': '2' };
+}
+
+async function refreshCoreProfiles() {
+  try {
+    const res = await fetch(`${HELIX_CORE_ORIGIN}${CORE_PROFILE_PATH}`, {
+      headers: signInternalGet(CORE_PROFILE_PATH),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) throw new Error(`core answered ${res.status}`);
+    const data = await res.json();
+    if (data && data.profiles && typeof data.profiles === 'object') {
+      coreProfiles = data.profiles;
+      coreProfilesAt = Date.now();
+    }
+  } catch (err) {
+    console.error(`[profiles] core fetch failed, serving ${coreProfiles ? 'last-good' : 'baked'}: ${String(err && err.message || err).slice(0, 140)}`);
+  }
+}
+if (HELIX_CORE_ORIGIN && INTERNAL_SHARED_SECRET) {
+  refreshCoreProfiles();
+  setInterval(refreshCoreProfiles, 5 * 60 * 1000).unref();
+}
+
+function effectiveProfiles() {
+  if (!coreProfiles) return PROFILES;
+  const merged = { ...PROFILES };
+  for (const [name, row] of Object.entries(coreProfiles)) {
+    merged[name] = { ...(merged[name] || {}), ...row };
+  }
+  return merged;
+}
+
 /**
  * Mint a signed session for the Helix Pipecat voice service — the SAME voice
  * mindlynx.ai speaks with (Deepgram STT → LLM → Cartesia TTS over WebRTC),
@@ -639,7 +695,8 @@ const PROFILES = {
  */
 function mintVoiceSession(site = 'helix', profileName = 'website') {
   const resolved = siteOf(site);
-  const profile = PROFILES[profileName] || PROFILES.website;
+  const profiles = effectiveProfiles();
+  const profile = profiles[profileName] || profiles.website;
   const claims = {
     // A profile with its own suffix swaps the whole speaking persona (and the
     // calendar, which only exists for booking); the knowledge is shared.
@@ -827,8 +884,9 @@ async function handleVoiceToken(req, res) {
   try {
     // Voice is framed by the same site as the page: same pack, same SITE suffix.
     // A gated profile needs the key; anything else quietly mints `website`.
-    const requested = PROFILES[String(body.profile || 'website')] ? String(body.profile || 'website') : 'website';
-    const allowed = !PROFILES[requested].gated || (PODCAST_KEY && String(body.key || '') === PODCAST_KEY);
+    const profiles = effectiveProfiles();
+    const requested = profiles[String(body.profile || 'website')] ? String(body.profile || 'website') : 'website';
+    const allowed = !profiles[requested].gated || (PODCAST_KEY && String(body.key || '') === PODCAST_KEY);
     return json(res, 200, mintVoiceSession(body.site, allowed ? requested : 'website'));
   } catch (err) {
     console.error('voice session mint failed:', err?.message || err);
@@ -928,7 +986,14 @@ export const server = createServer(async (req, res) => {
       return res.end(img);
     }
     if (req.method === 'GET' && path === '/api/health') {
-      return json(res, 200, { ok: true, agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY), voice: !!VOICE_OFFER_SECRET, bank: !!(ALBION_BANK && HELIX_BANK && MINDLYNX_BANK) });
+      return json(res, 200, {
+        ok: true,
+        agent: !!(ANTHROPIC_API_KEY || GEMINI_API_KEY),
+        voice: !!VOICE_OFFER_SECRET,
+        bank: !!(ALBION_BANK && HELIX_BANK && MINDLYNX_BANK),
+        profilesSource: coreProfiles ? 'core' : 'baked',
+        profilesFetchedAt: coreProfilesAt || null,
+      });
     }
     if (req.method === 'POST' && path === '/api/waitlist') return await handleWaitlist(req, res);
     if (req.method === 'POST' && path === '/api/agent') return await handleAgent(req, res);

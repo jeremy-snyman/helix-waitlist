@@ -25,7 +25,14 @@
      never baked into a served file. */
   var PROFILE = (tag && tag.getAttribute('data-profile')) || '';
   var PROFILE_KEY = '';
-  try { PROFILE_KEY = new URLSearchParams(window.location.search).get('key') || ''; } catch (_e) {}
+  try {
+    var _qs = new URLSearchParams(window.location.search);
+    PROFILE_KEY = _qs.get('key') || '';
+    /* Only a page that already declares a profile (the recording room) may
+       retarget it by query — the public doors ignore ?profile= entirely, so
+       new profiles need no new page but cannot be summoned on a door. */
+    if (PROFILE) PROFILE = _qs.get('profile') || PROFILE;
+  } catch (_e) {}
 
   /* --------------------------- per-site wiring --------------------------- */
   var SITES = {
