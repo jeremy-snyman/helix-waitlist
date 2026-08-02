@@ -809,9 +809,23 @@
         vlog('connected', {});
         refreshVoiceUi();
         if (live.connBub) { live.connBub.textContent = 'You are through to Vera.'; live.connBub = null; }
-        live.timer = setTimeout(function () {
-          stopLive('Voice session ended (five minute cap). Tap the mic to carry on.');
-        }, 300000);
+        /* Session cap: a cost guard, not a conversation guillotine. Doors get
+           15 minutes (a booking flow never fit in 5 — one got cut off mid
+           "that's all booked then"); profile pages (the recording room) get 90
+           so an episode cannot die mid-take. And when time is up while Vera is
+           mid-utterance, she finishes the sentence first: live.botBub is
+           truthy while a spoken turn is still streaming/settling, so we poll
+           until she is quiet, with a one-minute hard bound. */
+        var capMinutes = PROFILE ? 90 : 15;
+        var capNotice = 'Voice session ended (' + capMinutes + ' minute cap). Tap the mic to carry on.';
+        function capNow(deadline) {
+          if (live.botBub && Date.now() < deadline) {
+            live.timer = setTimeout(function () { capNow(deadline); }, 1000);
+            return;
+          }
+          stopLive(capNotice);
+        }
+        live.timer = setTimeout(function () { capNow(Date.now() + 60000); }, capMinutes * 60000);
       });
   }
 
