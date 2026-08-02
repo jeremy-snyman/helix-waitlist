@@ -307,6 +307,33 @@
 
   /* ------------------------------- the form ------------------------------ */
   var lastForm = null;
+  /* A spoken value rarely matches a select option byte-for-byte: the model
+     says "Finance", the option says "Financial services" — and those two are
+     not even substrings of each other (they diverge at "financE/financIal").
+     Match exactly, then by containment, then by shared word-stem: the first
+     words agree for at least four characters and nearly the whole shorter
+     word. No confident match leaves the select empty rather than guessing. */
+  function stemHit(a, b) {
+    var n = Math.min(a.length, b.length);
+    if (n < 4) return false;
+    var i = 0;
+    while (i < n && a.charAt(i) === b.charAt(i)) i++;
+    return i >= 4 && i >= n - 3;
+  }
+  function matchOption(value, options) {
+    var v = String(value || '').trim().toLowerCase();
+    if (!v) return '';
+    for (var i = 0; i < options.length; i++) if (options[i].toLowerCase() === v) return options[i];
+    for (i = 0; i < options.length; i++) {
+      var o = options[i].toLowerCase();
+      if (o.indexOf(v) > -1 || v.indexOf(o) > -1) return options[i];
+    }
+    for (i = 0; i < options.length; i++) {
+      if (stemHit(v.split(/\s+/)[0], options[i].toLowerCase().split(/\s+/)[0])) return options[i];
+    }
+    return '';
+  }
+
   function showForm(action) {
     var spec = FORMS[action.intent] || FORMS[DEFAULT_INTENT];
     /* never render a fabricated address: a placeholder-looking email comes up blank */
@@ -327,9 +354,10 @@
           return '<label class="ck"><input type="checkbox" data-check value="' + esc(o) + '"' + (pre.indexOf(o) > -1 ? ' checked' : '') + '> ' + esc(o) + '</label>';
         }).join('') + '</div>';
       } else if (f.type === 'select') {
+        var chosen = matchOption(values[f.key], f.options);
         html += '<select data-field="' + f.key + '"><option value="">' + esc(f.label) + '</option>'
           + f.options.map(function (o) {
-            return '<option value="' + esc(o) + '"' + (values[f.key] === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+            return '<option value="' + esc(o) + '"' + (chosen === o ? ' selected' : '') + '>' + esc(o) + '</option>';
           }).join('') + '</select>';
       } else {
         html += '<input type="' + f.type + '" data-field="' + f.key + '" value="' + esc(values[f.key]) + '" placeholder="' + esc(f.label) + '">';
