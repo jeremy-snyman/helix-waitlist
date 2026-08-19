@@ -167,3 +167,63 @@ test('an entry dates itself under a label that means what the field means', asyn
     }
   });
 });
+
+// P30: the remaining feeds. The page's own account of where its entries come
+// from is a claim a reader can check, so it is asserted on the PUBLISHED FILES
+// and not only in the renderer's unit tests.
+test('the method block names the licences these sources actually record', async () => {
+  await withServer(async (port) => {
+    const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index`, { headers: HOST })).text();
+
+    // The sentence used to read `under the Open Government Licence v3.0` for
+    // every source. P30 landed a publisher that states no re-use licence at
+    // all, so that literal became false about the page it was printed on.
+    assert.match(body, /Each source records its own licence/,
+      'the method block no longer says where its licences come from');
+    assert.match(body, /Open Government Licence v3\.0/,
+      'the licences the sources do record are not named');
+    assert.match(body, /No re-use licence stated by the publisher/,
+      'a source that states no licence is not disclosed as such');
+    assert.doesNotMatch(body, /regulator APIs, under the Open Government Licence v3\.0/,
+      'the page still claims one licence covers every source');
+  });
+});
+
+test('the method block does not claim registers are compared before the diff exists', async () => {
+  await withServer(async (port) => {
+    const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index`, { headers: HOST })).text();
+    assert.match(body, /snapshotted on every run/, 'the page no longer says snapshots are taken');
+    assert.doesNotMatch(body, /snapshotted and compared/,
+      'the page claims a comparison that does not happen until the diff engine lands');
+  });
+});
+
+test('every published entry page names the source it came from (CONV-PI-1)', async () => {
+  const dir = join(import.meta.dirname, '..', 'public', 'pressure-index');
+  const files = (await readdir(dir)).filter((f) => f.endsWith('.html'));
+  assert.ok(files.length >= 42, `only ${files.length} permanent addresses published`);
+
+  // Every one of the eight feeds is represented, so a feed that silently
+  // stopped publishing is a red rather than a slightly shorter issue.
+  const pages = await Promise.all(files.map((f) => readFile(join(dir, f), 'utf8')));
+  for (const source of [
+    'govuk-search', 'cqc-ratings', 'ofgem-publications', 'desnz-statistics',
+    'find-a-tender', 'planning-data', 'housing-ombudsman', 'judiciary-pfd',
+  ]) {
+    assert.ok(pages.some((p) => p.includes(source)), `no published entry cites ${source}`);
+  }
+});
+
+test('no published entry is addressed by its position in a fetch', async () => {
+  // A permanent address that changes what it means is worse than one that
+  // 404s, because nothing tells the reader. The feeds that publish a rolling
+  // window derive their id from the record, so next week's shift cannot
+  // overwrite a cited entry.
+  const dir = join(import.meta.dirname, '..', 'public', 'pressure-index');
+  const files = (await readdir(dir)).filter((f) => f.endsWith('.html'));
+  const churnable = files.filter((f) => /^PI-(HOS|OFG|FTS|DESNZ|PLN|PFD)-/.test(f));
+  assert.ok(churnable.length > 0, 'no rolling-window entries published, so this proves nothing');
+  for (const f of churnable) {
+    assert.doesNotMatch(f, /-\d{3}\.html$/, `${f} is addressed by a position, not by its record`);
+  }
+});
