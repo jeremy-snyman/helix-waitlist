@@ -793,6 +793,12 @@ const VERA_STAMP = createHash('sha256')
   .update(await readFile(join(ROOT, 'public', 'vera.js')))
   .digest('hex')
   .slice(0, 8);
+// The Pressure Index's closed sets (P11). Letters, digits and hyphens only --
+// the same character class the pressure_event object enforces on eventId, so an
+// id that could be written is an id that can resolve, and nothing else can.
+const PRESSURE_SECTORS = new Set(['energy', 'housing', 'care', 'cross']);
+const PRESSURE_ENTRY_ID = /^[A-Za-z0-9-]{1,64}$/;
+
 async function sendPage(res, file = 'index.html') {
   if (!pageCache.has(file)) {
     const raw = await readFile(join(ROOT, 'public', file), 'utf8');
@@ -969,7 +975,30 @@ export const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && (path === '/albion' || path === '/albion.html')) return await sendPage(res, 'albion.html');
     if (req.method === 'GET' && (path === '/cortex' || path === '/cortex.html')) return await sendPage(res, 'cortex.html');
-    if (req.method === 'GET' && (path === '/pressure-index' || path === '/pressure-index.html')) return await sendPage(res, 'pressure-index.html'); // HELIX-PRESSURE-INDEX-RALPH-001 P02: the Index placeholder; Issue 01 replaces it as a static export
+    // HELIX-PRESSURE-INDEX-RALPH-001 P02/P11: the Pressure Index, a static export
+    // generated from the store by helix-core tooling/scripts/exportPressureIndex.ts.
+    // Still the whitelisted-page seam, not a file server: the sector is checked
+    // against a closed set and the entry id against a closed character class, so
+    // the only thing either branch can ever serve is a page the export wrote.
+    if (req.method === 'GET' && (path === '/pressure-index' || path === '/pressure-index.html')) {
+      const sector = new URL(req.url, 'http://local').searchParams.get('sector');
+      if (!sector) return await sendPage(res, 'pressure-index.html');
+      // An unknown sector must not quietly serve the whole register: the reader
+      // would take the total as that sector's count.
+      if (!PRESSURE_SECTORS.has(sector)) return json(res, 404, { ok: false, error: 'Not found' });
+      return await sendPage(res, `pressure-index-sector-${sector}.html`);
+    }
+    // The PERMANENT per-entry address. It resolves for good, or it 404s; it is
+    // never invented.
+    if (req.method === 'GET' && path.startsWith('/pressure-index/')) {
+      const id = path.slice('/pressure-index/'.length);
+      if (!PRESSURE_ENTRY_ID.test(id)) return json(res, 404, { ok: false, error: 'Not found' });
+      try {
+        return await sendPage(res, `pressure-index/${id}.html`);
+      } catch {
+        return json(res, 404, { ok: false, error: 'Not found' });
+      }
+    }
     if (req.method === 'GET' && (path === '/helix' || path === '/helix.html')) return await sendPage(res, 'index.html'); // the way back from albion.*/cortex.* hosts, where / is theirs
     if (req.method === 'GET' && path === '/podcast') return await sendPage(res, 'podcast.html'); // unlisted recording room; the podcast PROFILE is what the key gates, not the page
     if (req.method === 'GET' && path === '/vera.js') { // the shared companion; whitelisted like the hero
