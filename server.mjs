@@ -969,6 +969,7 @@ export const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && (path === '/albion' || path === '/albion.html')) return await sendPage(res, 'albion.html');
     if (req.method === 'GET' && (path === '/cortex' || path === '/cortex.html')) return await sendPage(res, 'cortex.html');
+    if (req.method === 'GET' && (path === '/pressure-index' || path === '/pressure-index.html')) return await sendPage(res, 'pressure-index.html'); // HELIX-PRESSURE-INDEX-RALPH-001 P02: the Index placeholder; Issue 01 replaces it as a static export
     if (req.method === 'GET' && (path === '/helix' || path === '/helix.html')) return await sendPage(res, 'index.html'); // the way back from albion.*/cortex.* hosts, where / is theirs
     if (req.method === 'GET' && path === '/podcast') return await sendPage(res, 'podcast.html'); // unlisted recording room; the podcast PROFILE is what the key gates, not the page
     if (req.method === 'GET' && path === '/vera.js') { // the shared companion; whitelisted like the hero
