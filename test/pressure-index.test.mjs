@@ -118,7 +118,52 @@ test('CONV-PI-2 on the rendered output: a named organisation carries no reading 
   assert.ok(named.length > 0, 'no entry names an organisation, so the absence proves nothing');
 
   for (const page of named) {
+    // THE ASSERTION THIS TEST IS NAMED FOR. The disclaimer below is a statement
+    // ABOUT the constraint; this is the constraint: no reading of a named
+    // organisation is rendered anywhere on the page.
+    assert.doesNotMatch(page, /<h2>The reading<\/h2>/,
+      'an entry naming an organisation renders OUR reading of them (CONV-PI-2)');
     assert.match(page, /carries no assessment of them and infers no consequence for them/,
       'an entry naming an organisation must state that it carries no assessment of them');
   }
+});
+
+test('the front page says what the list IS, and its dates run in the order it shows them', async () => {
+  await withServer(async (port) => {
+    const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index`, { headers: HOST })).text();
+    // W1. A register whose oldest records were first published in 2013 and 2015
+    // is not `this week`, and the page no longer says it is.
+    assert.doesNotMatch(body, />This week</, 'the register is headed `This week` over records years older');
+    assert.doesNotMatch(body, /pressure from, this week/);
+    assert.match(body, />In this issue</);
+    // and it states the span it actually covers, computed from the entries.
+    assert.match(body, /entries, dated <time datetime="/);
+    // W2. The date each row shows is the date the register is ordered by.
+    const shown = [...body.matchAll(/<article class="entry"[\s\S]*?<b><time datetime="([^"]+)"/g)]
+      .map((m) => Date.parse(m[1]));
+    assert.ok(shown.length > 1, 'no dated entries on the front page');
+    assert.deepEqual(shown, [...shown].sort((a, b) => b - a),
+      'the visible date column does not run in the order the register is sorted in');
+    // and the two dates are labelled distinctly.
+    assert.match(body, /<em class="lbl">published<\/em>/);
+    // W4. The `scraped, estimated or inferred` figure is the register's own count.
+    assert.match(body, /<b>0<\/b><span>scraped, estimated or inferred<\/span>/);
+    // W13. A sentence after a full stop starts with a capital.
+    assert.doesNotMatch(body, /capped\.<\/b> [a-z]/, 'a sentence starts lowercase after a full stop');
+  });
+});
+
+test('an entry dates itself under a label that means what the field means', async () => {
+  const dir = join(import.meta.dirname, '..', 'public', 'pressure-index');
+  const ids = (await readdir(dir)).filter((f) => f.endsWith('.html')).map((f) => f.replace(/\.html$/, ''));
+  await withServer(async (port) => {
+    for (const id of ids) {
+      const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index/${id}`, { headers: HOST })).text();
+      // W3. The date rendered here is GOV.UK's `first_published_at`, so the
+      // label says first published rather than an unqualified `published`.
+      assert.match(body, /<dt>First published<\/dt>/, `${id}: the publication date carries an inaccurate label`);
+      assert.doesNotMatch(body, /<dt>Source published<\/dt>/, `${id}: the old label survives`);
+      assert.doesNotMatch(body, /capped\.<\/b> [a-z]/, `${id}: a sentence starts lowercase after a full stop`);
+    }
+  });
 });
