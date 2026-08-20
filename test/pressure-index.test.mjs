@@ -285,6 +285,16 @@ test('the method block reports the comparison that actually ran', async () => {
     const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index`, { headers: HOST })).text();
     assert.doesNotMatch(body, /The first comparison publishes once two snapshots a week apart exist/,
       'the page still promises a comparison that has now happened');
-    assert.match(body, /registers? (has|have) been read twice/, 'the page does not say what it compared');
+    assert.match(body, /registers? had been read twice/, 'the page does not say what it compared');
+    // THE READING CARRIES ITS OWN INSTANT, and that is what makes it stay true.
+    // The store moves on every end-to-end run: the page said `the widest gap
+    // being 9 hours` while the store said 12, because a verification run had
+    // widened it. A figure derived at export and phrased as a claim about NOW
+    // is true when it is written and false an hour later, on the one page whose
+    // whole pitch is that nothing on it is asserted.
+    assert.match(body, /Reading the store as at \d{2}:\d{2} on \d{1,2} \w+ \d{4}/,
+      'the comparison does not say when it was read, so a later run can contradict it');
+    assert.doesNotMatch(body, /registers? have been read twice/,
+      'the comparison still speaks in the present tense about a reading it took once');
   });
 });
