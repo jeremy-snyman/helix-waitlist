@@ -42,11 +42,18 @@ test('GET /pressure-index serves the front page on any host, no session', async 
   });
 });
 
+/** The addresses issue 01 published under the positional scheme (P22 follow-up). */
+const ALIAS_ID = /^PI-2026-(C|E|H|CQC)-\d{3}$/;
+
 test('the front page renders entries FROM THE STORE, each with its source and retrieval date', async () => {
   await withServer(async (port) => {
     const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index`, { headers: HOST })).text();
     // A real entry reference, a real official source, and a retrieval date.
-    assert.match(body, /PI-2026-[EHCX]-\d{3}/, 'no entry reference on the front page');
+    // The address scheme is now DERIVED from the publisher's own reference
+    // (P22/P30 follow-up): the old `PI-2026-E-002` positional ids churned when
+    // the feed reshuffled, so an entry reference is a source prefix and a
+    // digest. The fifteen positional addresses still resolve, as aliases.
+    assert.match(body, /PI-[A-Z]+-[0-9a-f]{10}/, 'no entry reference on the front page');
     assert.match(body, /https:\/\/www\.gov\.uk\//, 'no official source link on the front page');
     assert.match(body, /retrieved <time datetime="20\d\d-/, 'no machine-readable retrieval date');
     // The counts the issue states on its face, not a hand-typed number.
@@ -75,7 +82,12 @@ test('a PERMANENT per-entry address resolves, and carries CONV-PI-1 in full', as
   // Read the exported entries rather than naming one: the test must hold for
   // whatever the store published, not for a fixture somebody typed here.
   const dir = join(import.meta.dirname, '..', 'public', 'pressure-index');
-  const ids = (await readdir(dir)).filter((f) => f.endsWith('.html')).map((f) => f.replace(/\.html$/, ''));
+  const all = (await readdir(dir)).filter((f) => f.endsWith('.html')).map((f) => f.replace(/\.html$/, ''));
+  // The fifteen addresses issue 01 published under the positional scheme are
+  // served as ALIAS pages: they resolve, and they say where the record lives
+  // now. They are asserted separately, below, because they are deliberately
+  // not entry pages.
+  const ids = all.filter((id) => !ALIAS_ID.test(id));
   assert.ok(ids.length > 0, 'no entry pages were exported');
 
   await withServer(async (port) => {
@@ -155,7 +167,8 @@ test('the front page says what the list IS, and its dates run in the order it sh
 
 test('an entry dates itself under a label that means what the field means', async () => {
   const dir = join(import.meta.dirname, '..', 'public', 'pressure-index');
-  const ids = (await readdir(dir)).filter((f) => f.endsWith('.html')).map((f) => f.replace(/\.html$/, ''));
+  const ids = (await readdir(dir)).filter((f) => f.endsWith('.html'))
+    .map((f) => f.replace(/\.html$/, '')).filter((id) => !ALIAS_ID.test(id));
   await withServer(async (port) => {
     for (const id of ids) {
       const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index/${id}`, { headers: HOST })).text();
@@ -226,4 +239,52 @@ test('no published entry is addressed by its position in a fetch', async () => {
   for (const f of churnable) {
     assert.doesNotMatch(f, /-\d{3}\.html$/, `${f} is addressed by a position, not by its record`);
   }
+});
+
+// P22 follow-up: the fifteen addresses issue 01 published under the positional
+// id scheme. They are live and citable, so they may not 404 and they may not
+// quietly point at a different record.
+test('every address published under the old scheme still resolves, and says what happened', async () => {
+  const dir = join(import.meta.dirname, '..', 'public', 'pressure-index');
+  const aliases = (await readdir(dir)).filter((f) => f.endsWith('.html'))
+    .map((f) => f.replace(/\.html$/, '')).filter((id) => ALIAS_ID.test(id));
+  assert.equal(aliases.length, 15, 'the fifteen issue-01 addresses are not all being served');
+
+  await withServer(async (port) => {
+    for (const id of aliases) {
+      const res = await fetch(`http://127.0.0.1:${port}/pressure-index/${id}`, { headers: HOST });
+      assert.equal(res.status, 200, `${id} no longer resolves, and it is a published address`);
+      const body = await res.text();
+      // It names itself, so a reader who cited it knows they are in the right place.
+      assert.match(body, new RegExp(id), `${id}: the page does not name the address that was cited`);
+      // It points at the entry rather than pretending to BE it.
+      assert.match(body, /rel="canonical" href="https:\/\/helix\.work\/pressure-index\/PI-[A-Z]+-[0-9a-f]{10}"/,
+        `${id}: the canonical does not point at a permanent address`);
+      assert.match(body, /noindex/, `${id}: a crawler could index this in place of the entry`);
+      // And it explains, rather than silently swapping the reader's address.
+      assert.match(body, /permanent address/, `${id}: no account of why the address moved`);
+    }
+  });
+});
+
+// P41 / MG-REQ-016: we publish our own misses.
+test('the issue publishes whether its own feeds ran', async () => {
+  await withServer(async (port) => {
+    const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index`, { headers: HOST })).text();
+    assert.match(body, /Whether this issue&#39;s feeds ran|Whether this issue's feeds ran/,
+      'the issue makes no statement about its own cadence');
+    // Derived from the rows, so it names real feeds rather than a round number.
+    assert.match(body, /of 8 feeds ran on their last expected schedule/,
+      'the cadence claim is not counted from the registry rows');
+  });
+});
+
+// P22: the page's account of the comparison is derived from the comparisons.
+test('the method block reports the comparison that actually ran', async () => {
+  await withServer(async (port) => {
+    const body = await (await fetch(`http://127.0.0.1:${port}/pressure-index`, { headers: HOST })).text();
+    assert.doesNotMatch(body, /The first comparison publishes once two snapshots a week apart exist/,
+      'the page still promises a comparison that has now happened');
+    assert.match(body, /registers? (has|have) been read twice/, 'the page does not say what it compared');
+  });
 });
